@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "google_workspace": {
+      "command": "node",
+      "disabled": false,
+      "args": [
+        "${PLUGIN_ROOT}/src/mcp_google_workspace/index.js"
+      ],
+      "env": {
+        "PLUGIN_ROOT": "${PLUGIN_ROOT}",
+        "PLUGIN_DATA": "${PLUGIN_DATA}"
+      },
+      "_meta": {
+        "antigravity/alwaysLoad": true
+      }
+    },
+    "playwright_scraper": {
+      "command": "python3",
+      "disabled": false,
+      "args": [
+        "-B",
+        "${PLUGIN_ROOT}/src/playwright_scraper/playwright_mcp_server.py"
+      ],
+      "env": {
+        "PLUGIN_ROOT": "${PLUGIN_ROOT}",
+        "PLUGIN_DATA": "${PLUGIN_DATA}"
+      },
+      "_meta": {
+        "antigravity/alwaysLoad": true
+      }
+    }
+  }
+}

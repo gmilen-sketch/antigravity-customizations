@@ -1,0 +1,27 @@
+{
+  "black-hat-subagent-pre-tool-sentinel": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "../../src/hooks/run_hook_safe.sh ../../src/hooks/multi_harness_hook_adapter.py --event PreToolUse",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "black-hat-subagent-return-gate": {
+    "enabled": true,
+    "Stop": [
+      {
+        "type": "command",
+        "command": "../../src/hooks/run_hook_safe.sh ../../src/hooks/multi_harness_hook_adapter.py --event Stop",
+        "timeout": 15
+      }
+    ]
+  }
+}

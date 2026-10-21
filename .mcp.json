@@ -1,0 +1,54 @@
+{
+  "mcpServers": {
+    "autonomy_engine": {
+      "command": "python3",
+      "args": [
+        "-B",
+        "src/autonomy_engine/mcp_autonomy_hub.py"
+      ]
+    },
+    "knowledge_graph": {
+      "command": "python3",
+      "args": [
+        "-B",
+        "src/knowledge_graph/kg_mcp_server.py"
+      ]
+    },
+    "diagram_renderer": {
+      "command": "python3",
+      "args": [
+        "-B",
+        "src/diagram_renderer/diagram_mcp_server.py"
+      ]
+    },
+    "six_hats_evaluator": {
+      "command": "python3",
+      "args": [
+        "-B",
+        "src/six_hats_evaluator/six_hats_mcp_server.py"
+      ]
+    },
+    "playwright_scraper": {
+      "command": "python3",
+      "args": [
+        "-B",
+        "src/playwright_scraper/playwright_mcp_server.py"
+      ]
+    },
+    "deep_research": {
+      "command": "python3",
+      "args": [
+        "-B",
+        "src/mcp_deep_research.py",
+        "--transport",
+        "stdio"
+      ]
+    },
+    "google_workspace": {
+      "command": "node",
+      "args": [
+        "src/mcp_google_workspace/index.js"
+      ]
+    }
+  }
+}

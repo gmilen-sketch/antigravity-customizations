@@ -1,0 +1,27 @@
+{
+  "sentinel-policy-guard": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "write_to_file|write_file|replace_file_content|edit_file|run_command|view_file|read_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "../../src/hooks/run_hook_safe.sh ../../src/hooks/multi_harness_hook_adapter.py --event PreToolUse",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "black-hat-completion-gate": {
+    "enabled": true,
+    "Stop": [
+      {
+        "type": "command",
+        "command": "../../src/hooks/run_hook_safe.sh ../../src/hooks/multi_harness_hook_adapter.py --event Stop",
+        "timeout": 15
+      }
+    ]
+  }
+}

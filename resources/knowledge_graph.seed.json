@@ -1,0 +1,85 @@
+{
+  "metadata": {
+    "schema_version": "okf-v0.2",
+    "package_version": "1.4.0",
+    "description": "Clean-room Bitemporal Knowledge Graph seed for the Antigravity Enterprise Autonomy Suite."
+  },
+  "entities": {
+    "arch:six_pillar_cloud_reference": {
+      "id": "arch:six_pillar_cloud_reference",
+      "type": "ArchitecturePattern",
+      "name": "6-Pillar Enterprise Cloud Reference Architecture",
+      "pillars": [
+        "AI/ML",
+        "Data Analytics",
+        "App Modernization",
+        "Security & Zero-Trust",
+        "Multicloud & Hybrid",
+        "Sovereign Cloud"
+      ],
+      "activation": 1.25,
+      "valid_from": "2026-01-01T00:00:00Z"
+    },
+    "engine:autonomy_14_pillar": {
+      "id": "engine:autonomy_14_pillar",
+      "type": "Subsystem",
+      "name": "14-Pillar Agentic Autonomy Engine",
+      "components": [
+        "AAAK 3-Pass Context Compressor",
+        "P0 Circuit Breakers (CB-1..CB-7)",
+        "P1 Quality Breakers (P1-CB-1..P1-CB-8)",
+        "2-Stage Black-Hat Goldfish & Judge Gate",
+        "Polyphonic BM25F + Graph-RAG Retriever",
+        "Bayesian Self-Grill Prior Engine",
+        "Six Thinking Hats Delphi Router"
+      ],
+      "activation": 1.4,
+      "valid_from": "2026-01-01T00:00:00Z"
+    },
+    "finops:focus_1_3_cud_audit": {
+      "id": "finops:focus_1_3_cud_audit",
+      "type": "DomainPlaybook",
+      "name": "FOCUS v1.3 FinOps & Commitment Utilization Audit",
+      "metrics": [
+        "Net Effective Savings Rate (NESR)",
+        "Commitment Utilization Percentage",
+        "Coverage Gap Variance"
+      ],
+      "activation": 1.1,
+      "valid_from": "2026-01-01T00:00:00Z"
+    },
+    "sec:zero_trust_vpc_sc": {
+      "id": "sec:zero_trust_vpc_sc",
+      "type": "SecurityControl",
+      "name": "Zero-Trust VPC Service Controls & KMS Envelope",
+      "controls": [
+        "VPC-SC Ingress/Egress Perimeters",
+        "Cloud KMS CMEK",
+        "Cloud Armor WAF",
+        "Workload Identity Federation"
+      ],
+      "activation": 1.15,
+      "valid_from": "2026-01-01T00:00:00Z"
+    }
+  },
+  "edges": [
+    {
+      "source": "engine:autonomy_14_pillar",
+      "target": "arch:six_pillar_cloud_reference",
+      "relation": "GOVERNS_ARCHITECTURE",
+      "weight": 1.0
+    },
+    {
+      "source": "finops:focus_1_3_cud_audit",
+      "target": "arch:six_pillar_cloud_reference",
+      "relation": "OPTIMIZES_COST_PILLAR",
+      "weight": 0.95
+    },
+    {
+      "source": "sec:zero_trust_vpc_sc",
+      "target": "arch:six_pillar_cloud_reference",
+      "relation": "ENFORCES_SECURITY_PILLAR",
+      "weight": 1.0
+    }
+  ]
+}

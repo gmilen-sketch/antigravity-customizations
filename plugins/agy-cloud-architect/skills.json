@@ -1,0 +1,14 @@
+{
+  "entries": [
+    {
+      "path": "../../skills",
+      "include_only": [
+        "diagram-renderer",
+        "finops-focus-auditor",
+        "migration-center-architect",
+        "open-deep-researcher",
+        "universal-solution-architect"
+      ]
+    }
+  ]
+}

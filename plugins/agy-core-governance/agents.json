@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "path": "../../agents",
+      "include_only": [
+        "black-hat-goldfish",
+        "black-hat-judge",
+        "black-hat-critic"
+      ]
+    }
+  ]
+}

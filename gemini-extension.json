@@ -1,0 +1,6 @@
+{
+  "name": "antigravity-customizations",
+  "version": "1.3.0",
+  "description": "Standalone Customer-Facing Antigravity Customizations Suite: 14-Pillar Autonomy Engine, Bitemporal Knowledge Graph (OKF v0.2), 20 PD-Q Skills, 5 Custom Subagents, 3 Lifecycle Hooks, AuxPane UI Sidecar, and 7 FastMCP/Node MCP Servers.",
+  "contextFileName": "GEMINI.md"
+}

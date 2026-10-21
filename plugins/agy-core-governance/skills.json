@@ -1,0 +1,15 @@
+{
+  "entries": [
+    {
+      "path": "../../skills",
+      "include_only": [
+        "black-hat-analysis",
+        "golden-ab-testing",
+        "p0-quality-first-engine",
+        "p1-quality-first-engine",
+        "self-grill",
+        "six-hats-evaluator"
+      ]
+    }
+  ]
+}

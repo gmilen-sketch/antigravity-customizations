@@ -1,0 +1,20 @@
+{
+  "name": "agy-knowledge-graph",
+  "displayName": "Antigravity Bitemporal Knowledge Graph & AuxPane UI",
+  "description": "Bitemporal Knowledge Graph (OKF v0.2), PreInvocation entity grounding hook, AuxPane UI Sidecar, and Nightly Dreaming subagents.",
+  "version": "1.4.0",
+  "logo": "../../assets/logo.svg",
+  "suggestedPrompts": [
+    "Query the Bitemporal Knowledge Graph for active project entities",
+    "Open the Autonomy and Knowledge Graph Hub in the side pane",
+    "Compile Open Knowledge Format (OKF v0.2) markdown dossiers into the graph"
+  ],
+  "disabled": false,
+  "keywords": [
+    "knowledge-graph",
+    "bitemporal-memory",
+    "okf",
+    "sidecar-ui",
+    "dreaming-engine"
+  ]
+}

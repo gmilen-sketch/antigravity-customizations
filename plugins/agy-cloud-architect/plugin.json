@@ -1,0 +1,20 @@
+{
+  "name": "agy-cloud-architect",
+  "displayName": "Antigravity 6-Pillar Cloud & FinOps Architect",
+  "description": "10 PD-Q cloud architecture, FinOps commitment audit, GKE, Spanner, BigQuery, Security, Terraform, AlloyDB, and Diagram Renderer skills + MCPs.",
+  "version": "1.4.0",
+  "logo": "../../assets/logo.svg",
+  "suggestedPrompts": [
+    "Design a multi-region cloud architecture across all 6 pillars",
+    "Run a FinOps commitment and CUD utilization audit",
+    "Render a high-resolution cloud architecture diagram"
+  ],
+  "disabled": false,
+  "keywords": [
+    "cloud-architecture",
+    "finops",
+    "diagrams",
+    "mermaid",
+    "deep-research"
+  ]
+}

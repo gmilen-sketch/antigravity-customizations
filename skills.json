@@ -1,0 +1,107 @@
+{
+  "entries": [
+    {
+      "path": "skills",
+      "include_only": [
+        "black-hat-analysis",
+        "diagram-renderer",
+        "finops-focus-auditor",
+        "open-deep-researcher",
+        "p0-quality-first-engine",
+        "self-grill",
+        "universal-solution-architect"
+      ]
+    }
+  ],
+  "tier_1_active_skills": [
+    "black-hat-analysis",
+    "diagram-renderer",
+    "finops-focus-auditor",
+    "open-deep-researcher",
+    "p0-quality-first-engine",
+    "self-grill",
+    "universal-solution-architect"
+  ],
+  "skills": [
+    {
+      "name": "antigravity-web-builder",
+      "path": "skills/antigravity-web-builder/SKILL.md"
+    },
+    {
+      "name": "black-hat-analysis",
+      "path": "skills/black-hat-analysis/SKILL.md"
+    },
+    {
+      "name": "diagram-renderer",
+      "path": "skills/diagram-renderer/SKILL.md"
+    },
+    {
+      "name": "finops-focus-auditor",
+      "path": "skills/finops-focus-auditor/SKILL.md"
+    },
+    {
+      "name": "first-principles-brainstormer",
+      "path": "skills/first-principles-brainstormer/SKILL.md"
+    },
+    {
+      "name": "golden-ab-testing",
+      "path": "skills/golden-ab-testing/SKILL.md"
+    },
+    {
+      "name": "idea-evaluator",
+      "path": "skills/idea-evaluator/SKILL.md"
+    },
+    {
+      "name": "issue-tracker-manager",
+      "path": "skills/issue-tracker-manager/SKILL.md"
+    },
+    {
+      "name": "migration-center-architect",
+      "path": "skills/migration-center-architect/SKILL.md"
+    },
+    {
+      "name": "open-deep-researcher",
+      "path": "skills/open-deep-researcher/SKILL.md"
+    },
+    {
+      "name": "p0-quality-first-engine",
+      "path": "skills/p0-quality-first-engine/SKILL.md"
+    },
+    {
+      "name": "p1-quality-first-engine",
+      "path": "skills/p1-quality-first-engine/SKILL.md"
+    },
+    {
+      "name": "parallel-task-orchestrator",
+      "path": "skills/parallel-task-orchestrator/SKILL.md"
+    },
+    {
+      "name": "playwright-agent-browser",
+      "path": "skills/playwright-agent-browser/SKILL.md"
+    },
+    {
+      "name": "self-grill",
+      "path": "skills/self-grill/SKILL.md"
+    },
+    {
+      "name": "six-hats-evaluator",
+      "path": "skills/six-hats-evaluator/SKILL.md"
+    },
+    {
+      "name": "universal-solution-architect",
+      "path": "skills/universal-solution-architect/SKILL.md"
+    },
+    {
+      "name": "universal-task-sync",
+      "path": "skills/universal-task-sync/SKILL.md"
+    },
+    {
+      "name": "workspace-docs-publisher",
+      "path": "skills/workspace-docs-publisher/SKILL.md"
+    },
+    {
+      "name": "workspace-slides-generator",
+      "path": "skills/workspace-slides-generator/SKILL.md"
+    }
+  ]
+}

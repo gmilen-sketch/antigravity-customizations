@@ -1,0 +1,35 @@
+{
+  "name": "antigravity-customizations",
+  "displayName": "Antigravity Enterprise Autonomy Suite",
+  "description": "Standalone Customer-Facing Antigravity Customizations Suite: 14-Pillar Autonomy Engine, Bitemporal Knowledge Graph (OKF v0.2), 20 PD-Q Skills, 5 Custom Subagents, 3 Lifecycle Hooks, 3 Sidecars (AuxPane UI, CDC Watcher, Nightly Dreaming), and 7 FastMCP/Node MCP Servers.",
+  "version": "1.4.0",
+  "logo": "assets/logo.svg",
+  "keywords": [
+    "cloud-architecture",
+    "autonomy-engine",
+    "knowledge-graph",
+    "vertex-ai",
+    "bigquery",
+    "spanner",
+    "gke",
+    "finops",
+    "terraform",
+    "zero-trust",
+    "security",
+    "diagrams",
+    "mermaid",
+    "deep-research",
+    "playwright",
+    "google-workspace",
+    "black-hat-verification",
+    "six-thinking-hats",
+    "multi-agent",
+    "mcp"
+  ],
+  "suggestedPrompts": [
+    "Run a 2-Stage Black-Hat Goldfish and Judge verification on my workspace",
+    "Design a multi-region cloud architecture across all 6 pillars using universal-solution-architect",
+    "Query the Bitemporal Knowledge Graph for active project entities and architecture constraints"
+  ],
+  "disabled": false
+}

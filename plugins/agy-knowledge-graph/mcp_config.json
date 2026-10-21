@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "knowledge_graph": {
+      "command": "python3",
+      "disabled": false,
+      "args": [
+        "-B",
+        "${PLUGIN_ROOT}/src/knowledge_graph/kg_mcp_server.py"
+      ],
+      "env": {
+        "PLUGIN_ROOT": "${PLUGIN_ROOT}",
+        "PLUGIN_DATA": "${PLUGIN_DATA}"
+      },
+      "_meta": {
+        "antigravity/alwaysLoad": true
+      }
+    }
+  }
+}

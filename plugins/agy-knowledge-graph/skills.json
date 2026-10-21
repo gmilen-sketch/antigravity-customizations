@@ -1,0 +1,12 @@
+{
+  "entries": [
+    {
+      "path": "../../skills",
+      "include_only": [
+        "first-principles-brainstormer",
+        "idea-evaluator",
+        "parallel-task-orchestrator"
+      ]
+    }
+  ]
+}

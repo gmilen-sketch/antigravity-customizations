@@ -1,0 +1,20 @@
+{
+  "name": "agy-workspace-automation",
+  "displayName": "Antigravity Workspace & Headless Browser Automation",
+  "description": "Google Docs, Sheets, Slides, Portfolio Task Manager, Headless Browser Scraper, and Executive Briefing skills + MCP servers.",
+  "version": "1.4.0",
+  "logo": "../../assets/logo.svg",
+  "suggestedPrompts": [
+    "Generate a 3-Tab executive technical report in Google Docs",
+    "Build a 1-Sheet 3-Row Staging Diff before updating our portfolio tracker",
+    "Extract live web documentation using the headless browser scraper"
+  ],
+  "disabled": false,
+  "keywords": [
+    "google-workspace",
+    "gdocs",
+    "gslides",
+    "playwright",
+    "task-sync"
+  ]
+}

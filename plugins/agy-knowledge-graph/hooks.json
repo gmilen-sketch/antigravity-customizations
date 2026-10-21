@@ -1,0 +1,17 @@
+{
+  "knowledge-graph-grounding": {
+    "enabled": true,
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "../../src/hooks/run_hook_safe.sh ../../src/hooks/lazy_plugin_bootstrap.py",
+        "timeout": 15
+      },
+      {
+        "type": "command",
+        "command": "../../src/hooks/run_hook_safe.sh ../../src/hooks/multi_harness_hook_adapter.py --event PreInvocation",
+        "timeout": 5
+      }
+    ]
+  }
+}

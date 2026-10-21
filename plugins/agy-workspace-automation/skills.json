@@ -1,0 +1,15 @@
+{
+  "entries": [
+    {
+      "path": "../../skills",
+      "include_only": [
+        "antigravity-web-builder",
+        "issue-tracker-manager",
+        "playwright-agent-browser",
+        "universal-task-sync",
+        "workspace-docs-publisher",
+        "workspace-slides-generator"
+      ]
+    }
+  ]
+}

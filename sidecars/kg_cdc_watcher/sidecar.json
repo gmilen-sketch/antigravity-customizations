@@ -1,0 +1,16 @@
+{
+  "command": "python3",
+  "args": [
+    "-B",
+    "watcher.py"
+  ],
+  "display_name": "Knowledge Graph Streaming CDC Watcher",
+  "description": "Real-time file and repository event watcher streaming file creations, edits, and AST changes into Bitemporal Knowledge Graph memory.",
+  "restart_policy": "always",
+  "has_web_ui": false,
+  "env": {
+    "ANTIGRAVITY_PROJECT_ID": "automations",
+    "PLUGIN_ROOT": "${PLUGIN_ROOT}",
+    "PLUGIN_DATA": "${PLUGIN_DATA}"
+  }
+}

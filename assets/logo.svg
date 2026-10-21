@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Antigravity Customizations Suite Logo">
+  <defs>
+    <linearGradient id="agyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a73e8" />
+      <stop offset="100%" stop-color="#0d47a1" />
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#agyGrad)" />
+  <circle cx="64" cy="44" r="12" fill="#ffffff" />
+  <circle cx="36" cy="84" r="10" fill="#8ab4f8" />
+  <circle cx="92" cy="84" r="10" fill="#8ab4f8" />
+  <path d="M56 53 L42 75 M72 53 L86 75 M46 84 L82 84" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+  <circle cx="64" cy="44" r="5" fill="#1a73e8" />
+</svg>

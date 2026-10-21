@@ -1,0 +1,24 @@
+{
+  "entries": [
+    {
+      "path": "rules"
+    }
+  ],
+  "rules": [
+    {
+      "name": "gemini-sentinel-rules",
+      "path": "rules/GEMINI.md",
+      "alwaysOn": true
+    },
+    {
+      "name": "agents-execution-rules",
+      "path": "rules/AGENTS.md",
+      "alwaysOn": true
+    },
+    {
+      "name": "no-bullshit-communication",
+      "path": "rules/no-bullshit.md",
+      "alwaysOn": true
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "agy-core-governance",
+  "displayName": "Antigravity Core Governance & Black-Hat Gate",
+  "description": "14-Pillar P0/P1 Quality Engine, 2-Stage Black-Hat Goldfish & Judge subagents, PreToolUse/Stop hooks, and Six-Hats Evaluator MCP.",
+  "version": "1.4.0",
+  "logo": "../../assets/logo.svg",
+  "suggestedPrompts": [
+    "Run a 2-Stage Black-Hat Goldfish and Judge verification on my workspace",
+    "Evaluate this architecture change with the Six-Hats Evaluator MCP server",
+    "Run the P0 and P1 quality circuit-breaker self-tests"
+  ],
+  "disabled": false,
+  "keywords": [
+    "governance",
+    "black-hat-verification",
+    "quality-gates",
+    "six-thinking-hats",
+    "autonomy-engine"
+  ]
+}

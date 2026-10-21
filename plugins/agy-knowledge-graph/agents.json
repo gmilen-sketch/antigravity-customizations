@@ -1,0 +1,11 @@
+{
+  "entries": [
+    {
+      "path": "../../agents",
+      "include_only": [
+        "dreaming-improvement-reasoner",
+        "workspace-housekeeper"
+      ]
+    }
+  ]
+}

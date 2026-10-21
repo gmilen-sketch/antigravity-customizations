@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "autonomy_engine": {
+      "command": "python3",
+      "disabled": false,
+      "args": [
+        "-B",
+        "${PLUGIN_ROOT}/src/autonomy_engine/mcp_autonomy_hub.py"
+      ],
+      "env": {
+        "PLUGIN_ROOT": "${PLUGIN_ROOT}",
+        "PLUGIN_DATA": "${PLUGIN_DATA}"
+      },
+      "_meta": {
+        "antigravity/alwaysLoad": true
+      }
+    },
+    "six_hats_evaluator": {
+      "command": "python3",
+      "disabled": false,
+      "args": [
+        "-B",
+        "${PLUGIN_ROOT}/src/six_hats_evaluator/six_hats_mcp_server.py"
+      ],
+      "env": {
+        "PLUGIN_ROOT": "${PLUGIN_ROOT}",
+        "PLUGIN_DATA": "${PLUGIN_DATA}"
+      },
+      "_meta": {
+        "antigravity/alwaysLoad": true
+      }
+    }
+  }
+}

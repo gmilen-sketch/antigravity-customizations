@@ -1,0 +1,18 @@
+{
+  "builtin": "schedule",
+  "args": [
+    "30 0 * * *",
+    "agentapi",
+    "new-conversation",
+    "--model=pro",
+    "Execute the Daily Nightly Dreaming, Bitemporal Knowledge Graph Consolidation (ACT-R power-law decay), and 14-Pillar Anti-Overfitting Verification pass across workspace transcripts using python3 ${PLUGIN_ROOT}/src/knowledge_graph/dreaming_engine.py and python3 ${PLUGIN_ROOT}/src/autonomy_engine/anti_overfitting_gate.py."
+  ],
+  "restart_policy": "always",
+  "display_name": "DAILY NIGHTLY DREAMING ENGINE",
+  "description": "Scheduled Nightly Dreaming Engine (00:30 UTC) that consolidates Bitemporal Knowledge Graph memory, applies ACT-R power-law node decay, runs the 8-Mutant Saboteur anti-overfitting gate, and pre-warms the shared-memory cache.",
+  "env": {
+    "ANTIGRAVITY_PROJECT_ID": "automations",
+    "PLUGIN_ROOT": "${PLUGIN_ROOT}",
+    "PLUGIN_DATA": "${PLUGIN_DATA}"
+  }
+}

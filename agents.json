@@ -1,0 +1,24 @@
+{
+  "agents": [
+    {
+      "name": "black-hat-critic",
+      "path": "agents/black-hat-critic/agent.md"
+    },
+    {
+      "name": "black-hat-goldfish",
+      "path": "agents/black-hat-goldfish/agent.md"
+    },
+    {
+      "name": "black-hat-judge",
+      "path": "agents/black-hat-judge/agent.md"
+    },
+    {
+      "name": "dreaming-improvement-reasoner",
+      "path": "agents/dreaming-improvement-reasoner/agent.md"
+    },
+    {
+      "name": "workspace-housekeeper",
+      "path": "agents/workspace-housekeeper/agent.md"
+    }
+  ]
+}

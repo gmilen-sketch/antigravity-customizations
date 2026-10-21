@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Autonomy &amp; Knowledge Graph Hub</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/preload.js"></script>
+</head>
+<body>
+  <div class="header">
+    <h3 class="title">Autonomy &amp; Knowledge Graph Hub</h3>
+    <span class="badge" id="version-badge">v1.3.0</span>
+  </div>
+
+  <div class="card">
+    <h4>14-Pillar Quality &amp; Knowledge Graph Telemetry</h4>
+    <p class="muted-text" id="status-line">Connecting to local sidecar telemetry...</p>
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="stat-val" id="kg-nodes">20</div>
+        <div class="muted-text">PD-Q Skills</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="subagent-count">5</div>
+        <div class="muted-text">Custom Subagents</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="mcp-count">7</div>
+        <div class="muted-text">Eager MCP Servers</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="pillar-count">14 / 14</div>
+        <div class="muted-text">P0+P1 Breakers</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h4>One-Click Agent Actions (window.sidecar)</h4>
+    <p class="muted-text">Dispatch verified prompts directly into the active conversation:</p>
+    <div class="btn-row">
+      <button id="btn-blackhat" type="button">Run 2-Stage Black-Hat Goldfish &amp; Judge Audit</button>
+      <button id="btn-kg" type="button">Query Bitemporal Knowledge Graph Entities</button>
+      <button id="btn-arch" type="button">Run 6-Pillar Cloud Architecture Review</button>
+    </div>
+  </div>
+
+  <script>
+    async function refreshStatus() {
+      try {
+        const res = await fetch('/api/status');
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('status-line').textContent =
+            'Active | KG Entities: ' + data.kg_entities + ' | Plugins: ' + data.plugin_packs;
+        }
+      } catch (err) {
+        document.getElementById('status-line').textContent = 'Standalone preview mode active';
+      }
+    }
+
+    function bindPromptButton(id, promptText) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('click', async () => {
+        if (window.sidecar && window.sidecar.agent && window.sidecar.agent.sendMessage) {
+          await window.sidecar.agent.sendMessage(promptText);
+        }
+      });
+    }
+
+    bindPromptButton('btn-blackhat', 'Run a 2-Stage Black-Hat Goldfish and Judge verification on my workspace.');
+    bindPromptButton('btn-kg', 'Query the Bitemporal Knowledge Graph for active project entities and architecture constraints.');
+    bindPromptButton('btn-arch', 'Audit our cloud architecture across all 6 pillars using universal-solution-architect.');
+    refreshStatus();
+  </script>
+</body>
+</html>
