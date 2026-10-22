@@ -742,7 +742,7 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
         self.assertLessEqual(wakeup["byte_length"], 800)
 
     def test_20b_copy_paste_deploy_prompt_and_install_verify_flag(self):
-        """Verifies DEPLOY_PROMPT.md, README.md copy-paste deployment prompt, and ./scripts/install.sh --verify."""
+        """Verifies DEPLOY_PROMPT.md, README.md copy-paste prompt, pre-existing customization backup/review, --merge-legacy, and ./scripts/install.sh --verify."""
         deploy_md = pathlib.Path(REPO_ROOT, "DEPLOY_PROMPT.md")
         readme_md = pathlib.Path(REPO_ROOT, "README.md")
         self.assertTrue(deploy_md.is_file(), "Missing DEPLOY_PROMPT.md in repo root")
@@ -752,10 +752,35 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
         for doc_name, txt in (("DEPLOY_PROMPT.md", deploy_txt), ("README.md", readme_txt)):
             self.assertIn("https://github.com/gmilen-sketch/antigravity-customizations.git", txt, f"Missing repo URL in {doc_name}")
             self.assertIn("./scripts/install.sh --target all --verify", txt, f"Missing --verify install command in {doc_name}")
+            self.assertIn("LEGACY_CUSTOMIZATIONS_REVIEW.md", txt, f"Missing legacy customizations review step in {doc_name}")
+            self.assertIn("--merge-legacy", txt, f"Missing --merge-legacy integration command in {doc_name}")
             self.assertIn("GetAllSkills", txt, f"Missing Hub LanguageServer verification probe in {doc_name}")
 
         tmp_home = tempfile.mkdtemp()
         try:
+            # Seed pre-existing user customizations before running install.sh:
+            # 1) Colliding rule (AGENTS.md) + non-colliding custom rule (my-team-rules.md)
+            rules_dir = pathlib.Path(tmp_home, ".gemini", "config", "rules")
+            rules_dir.mkdir(parents=True, exist_ok=True)
+            (rules_dir / "AGENTS.md").write_text("# My Pre-Existing Team AGENTS Rule\nAlways use strict typing.\n", encoding="utf-8")
+            (rules_dir / "my-team-rules.md").write_text("# Custom Team Rule\n", encoding="utf-8")
+
+            # 2) Non-colliding custom skill (custom_finops_helper)
+            custom_skill_dir = pathlib.Path(tmp_home, ".gemini", "config", "skills", "custom_finops_helper")
+            custom_skill_dir.mkdir(parents=True, exist_ok=True)
+            (custom_skill_dir / "SKILL.md").write_text("---\nname: custom-finops-helper\n---\n# Custom Skill\n", encoding="utf-8")
+
+            # 3) Pre-existing custom hook in hooks.json and custom MCP server in mcp_config.json
+            cfg_dir = pathlib.Path(tmp_home, ".gemini", "config")
+            (cfg_dir / "hooks.json").write_text(
+                json.dumps({"my-custom-audit-hook": {"enabled": True, "Stop": [{"type": "command", "command": "echo ok"}]}}),
+                encoding="utf-8",
+            )
+            (cfg_dir / "mcp_config.json").write_text(
+                json.dumps({"mcpServers": {"my_custom_jira_mcp": {"command": "python3", "args": ["jira_mcp.py"]}}}),
+                encoding="utf-8",
+            )
+
             res = subprocess.run(
                 ["bash", os.path.join(REPO_ROOT, "scripts", "install.sh"), "--target", "all", "--home", tmp_home, "--verify"],
                 capture_output=True,
@@ -765,6 +790,40 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
             )
             self.assertIn('"verdict": "PASS"', res.stdout)
             self.assertIn('"primitives_verified": "7/7"', res.stdout)
+
+            # Verify pre-existing customizations were backed up and cataloged in LEGACY_CUSTOMIZATIONS_REVIEW.md
+            pdata = pathlib.Path(tmp_home, ".gemini", "antigravity", "plugin_data", "antigravity-customizations")
+            review_json_path = pdata / "legacy_customizations_review.json"
+            review_md_path = pdata / "LEGACY_CUSTOMIZATIONS_REVIEW.md"
+            self.assertTrue(review_json_path.is_file())
+            self.assertTrue(review_md_path.is_file())
+            review_data = json.loads(review_json_path.read_text(encoding="utf-8"))
+            self.assertGreaterEqual(review_data["discovered_count"], 5)
+            self.assertGreaterEqual(review_data["auto_coexisting_count"], 2)
+            self.assertGreaterEqual(review_data["backed_up_for_merge_count"], 3)
+
+            # Verify --merge-legacy non-destructively integrates backed-up rules, hooks, and MCP servers alongside v1.4.0
+            merge_res = subprocess.run(
+                ["python3", "-B", os.path.join(REPO_ROOT, "src", "hooks", "lazy_plugin_bootstrap.py"), "--merge-legacy", "--home", tmp_home],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            merge_out = json.loads(merge_res.stdout)
+            self.assertEqual(merge_out["status"], "merged")
+            self.assertIn("AGENTS.md", merge_out["merged_rules"])
+            self.assertIn("my-custom-audit-hook", merge_out["merged_hooks"])
+            self.assertIn("my_custom_jira_mcp", merge_out["merged_mcp_servers"])
+
+            # Verify integrated files exist alongside the 7 suite primitives
+            self.assertTrue((rules_dir / "legacy-user-customizations.md").is_file())
+            self.assertIn("My Pre-Existing Team AGENTS Rule", (rules_dir / "legacy-user-customizations.md").read_text(encoding="utf-8"))
+            merged_hooks = json.loads((cfg_dir / "hooks.json").read_text(encoding="utf-8"))
+            self.assertIn("sentinel-policy-guard", merged_hooks)
+            self.assertIn("my-custom-audit-hook", merged_hooks)
+            merged_mcps = json.loads((cfg_dir / "mcp_config.json").read_text(encoding="utf-8"))["mcpServers"]
+            self.assertIn("autonomy_engine", merged_mcps)
+            self.assertIn("my_custom_jira_mcp", merged_mcps)
         finally:
             shutil.rmtree(tmp_home, ignore_errors=True)
 

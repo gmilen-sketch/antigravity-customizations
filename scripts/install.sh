@@ -51,9 +51,10 @@ done
 export AGY_CLI_AUTO_COMPACT_OVERRIDE="${AGY_CLI_AUTO_COMPACT_OVERRIDE:-80%}"
 export JJ_PAGER="${JJ_PAGER:-cat}"
 
-echo "[1/4] Initializing Bitemporal Knowledge Graph, Seed Graph & Turn-1 Host Reconciler..."
+echo "[1/4] Backing up pre-existing user customizations, initializing Bitemporal Knowledge Graph & Turn-1 Reconciler..."
 if [[ "$DRY_RUN" == "false" ]]; then
     mkdir -p "${DEST_HOME}/.gemini/antigravity"
+    python3 -B "${REPO_ROOT}/src/hooks/lazy_plugin_bootstrap.py" --backup-existing --home "${DEST_HOME}" >/dev/null 2>&1 || true
     python3 -B "${REPO_ROOT}/src/hooks/lazy_plugin_bootstrap.py" --full-host-reconcile --home "${DEST_HOME}" >/dev/null 2>&1 || true
     KG_JSON_PATH="${DEST_HOME}/.gemini/antigravity/knowledge_graph.json" \
         python3 -B "${REPO_ROOT}/src/knowledge_graph/init_knowledge_graph.py" >/dev/null 2>&1 || true
@@ -184,8 +185,9 @@ checks = {
     "3_twotier_20_pdq_skills": len(json.loads((repo_root / "skills.json").read_text(encoding="utf-8")).get("skills", [])) == 20,
     "4_five_custom_subagents": len(json.loads((repo_root / "agents.json").read_text(encoding="utf-8")).get("agents", [])) == 5,
     "5_three_arm_b_rules": len(json.loads((repo_root / "rules.json").read_text(encoding="utf-8")).get("rules", [])) == 3,
-    "6_three_parsehooks_lifecycle_hooks": len(json.loads((dest_home / ".gemini" / "config" / "hooks.json").read_text(encoding="utf-8"))) == 3,
-    "7_seven_eager_mcps_and_3_sidecars": len(json.loads((dest_home / ".gemini" / "config" / "mcp_config.json").read_text(encoding="utf-8")).get("mcpServers", {})) == 7,
+    "6_three_parsehooks_lifecycle_hooks": len(json.loads((dest_home / ".gemini" / "config" / "hooks.json").read_text(encoding="utf-8"))) >= 3,
+    "7_seven_eager_mcps_and_3_sidecars": len(json.loads((dest_home / ".gemini" / "config" / "mcp_config.json").read_text(encoding="utf-8")).get("mcpServers", {})) >= 7,
+    "8_legacy_customizations_review_manifest": (dest_home / ".gemini" / "antigravity" / "plugin_data" / "antigravity-customizations" / "LEGACY_CUSTOMIZATIONS_REVIEW.md").is_file(),
 }
 
 if not all(checks.values()):

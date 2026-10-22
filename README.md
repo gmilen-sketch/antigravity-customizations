@@ -13,7 +13,7 @@ Loadable in one command into **Antigravity CLI (`agy`)**, **Antigravity 2.0 IDE 
 Copy and paste the prompt below directly into **Antigravity 2.0 IDE**, **Antigravity Web Hub**, **Antigravity CLI (`agy`)**, **Claude Code (`claude`)**, **Cursor**, **Windsurf**, or **Google Cloud Code** (additional modular and rollback prompts are in [`DEPLOY_PROMPT.md`](DEPLOY_PROMPT.md)):
 
 ```text
-Deploy and verify the Antigravity Customizations Suite (v1.4.0) in this environment by executing these exact steps without interactive prompts:
+Deploy and verify the Antigravity Customizations Suite (v1.4.0) in this environment, safely backing up and reviewing any pre-existing user customizations, by executing these exact steps without interactive prompts:
 
 1. Clone or update the clean-room repository into ~/antigravity-customizations:
    if [ -d "$HOME/antigravity-customizations/.git" ]; then
@@ -23,15 +23,21 @@ Deploy and verify the Antigravity Customizations Suite (v1.4.0) in this environm
      git clone --depth 1 https://github.com/gmilen-sketch/antigravity-customizations.git "$HOME/antigravity-customizations"
    fi
 
-2. Install the Unified Plugin, 4 Modular Domain Packs (agy-core-governance, agy-knowledge-graph, agy-cloud-architect, agy-workspace-automation), Role Bundle, Bitemporal Knowledge Graph, 20 PD-Q Skills, 5 Subagents, 3 Arm B Rules, 3 ParseHooks Lifecycle Hooks, 7 Eager MCP Servers, and 3 Zero-Permission Sidecars, and run the built-in 7-primitive + unit-test verifier:
+2. Back up any pre-existing user customizations (rules, skills, subagents, hooks.json, mcp_config.json, CLAUDE.md, .cursorrules) into ~/.gemini/antigravity/plugin_data/antigravity-customizations/legacy_standalone_backup/ before installing:
+   python3 -B "$HOME/antigravity-customizations/src/hooks/lazy_plugin_bootstrap.py" --backup-existing --home "$HOME"
+
+3. Install the Unified Plugin, 4 Modular Domain Packs (agy-core-governance, agy-knowledge-graph, agy-cloud-architect, agy-workspace-automation), Role Bundle, Bitemporal Knowledge Graph, 20 PD-Q Skills, 5 Subagents, 3 Arm B Rules, 3 ParseHooks Lifecycle Hooks, 7 Eager MCP Servers, and 3 Zero-Permission Sidecars, and run the built-in 7-primitive + unit-test verifier:
    cd "$HOME/antigravity-customizations" && ./scripts/install.sh --target all --verify
 
-3. If the native `agy` CLI is available on PATH, also register the root plugin via:
+4. If the native `agy` CLI is available on PATH, also register the root plugin via:
    command -v agy >/dev/null 2>&1 && agy plugin install "$HOME/antigravity-customizations" || true
 
-4. If an Antigravity 2.0 / Web Hub Language Server is listening locally on port 8080 or 8081, probe `/exa.language_server_pb.LanguageServerService/GetAllSkills`, `GetAllCustomAgentConfigs`, and `GetMcpServerStates` to confirm live runtime registration.
+5. If an Antigravity 2.0 / Web Hub Language Server is listening locally on port 8080 or 8081, probe `/exa.language_server_pb.LanguageServerService/GetAllSkills`, `GetAllCustomAgentConfigs`, and `GetMcpServerStates` to confirm live runtime registration.
 
-5. Report a 3-column Markdown table (`Target | Behavior & Outcome | Status`) confirming all 7 customization primitives and the clean-room unit test suite passed with exit code 0.
+6. Review `~/.gemini/antigravity/plugin_data/antigravity-customizations/LEGACY_CUSTOMIZATIONS_REVIEW.md` (and `legacy_customizations_review.json`):
+   - If pre-existing customizations were found (`discovered_count > 0`), list every backed-up rule, skill, subagent, hook, and MCP server, explain which items already coexist automatically (`AUTO_COEXISTING`) vs. which are ready to merge (`BACKED_UP_FOR_MERGE`), and offer to run `python3 -B "$HOME/antigravity-customizations/src/hooks/lazy_plugin_bootstrap.py" --merge-legacy --home "$HOME"` to non-destructively integrate custom rules (`legacy-user-customizations.md`), custom hooks, and custom MCP servers alongside the v1.4.0 suite.
+
+7. Report a 3-column Markdown table (`Target | Behavior & Outcome | Status`) confirming all 7 customization primitives, pre-existing customization backup/integration status, and the clean-room unit test suite passed with exit code 0.
 ```
 
 ### Option A: Antigravity CLI (`agy`) & Antigravity 2.0 (v2.24.0+ / CLI v1.4.0+)
