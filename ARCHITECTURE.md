@@ -6,12 +6,12 @@ Unlike `antigravity-web-hub` (which bundles the self-hosted Web IDE reverse prox
 
 ## 2. Cross-Harness Compatibility Matrix
 
-| Feature | Antigravity CLI (`agy`) & 2.0 | Claude Code (`claude`) | Cursor / Windsurf / Cloud Code |
-|---|---|---|---|
-| **Plugin / Manifest Entrypoint** | `plugin.json`, `.antigravity-plugin/plugin.json` | `CLAUDE.md`, `.claude/settings.json` | `AGENTS.md`, `.cursorrules`, `.mcp.json` |
-| **Pre-Turn Grounding Hook** | `PreInvocation` (`kg_pre_invocation_hook.py`) | `UserPromptSubmit` (`multi_harness_hook_adapter.py`) | MCP `query_knowledge_graph` / `kg_search_entities` |
-| **Pre-Tool Safety Gate** | `PreToolUse` (`sentinel_dispatch.py`) | `PreToolUse` (`multi_harness_hook_adapter.py`) | MCP `verify_quality_circuit_breakers` |
-| **Adversarial Stop Gate** | `Stop` (`agent_stop_black_hat_gate.py`) | `Stop` (`multi_harness_hook_adapter.py`) | `.claude/agents/black-hat-{goldfish,judge}.md` |
-| **20 `PD-Q` Skills** | `skills/<name>/SKILL.md` (`skills.json`) | `.claude/commands/<name>.md` (`/<name>`) | `.agents/skills/<name>/SKILL.md` |
-| **5 Custom Subagents** | `agents/<name>/agent.md` (`preloadSkills`) | `.claude/agents/<name>.md` | `.agents/agents/<name>/agent.md` |
-| **7 MCP Servers** | `mcp_config.json` (`_meta.antigravity/alwaysLoad`) | `.mcp.json` | `.mcp.json` |
+| Feature | Antigravity (`agy` & 2.0) | Claude Code (`claude`) | Cursor / Windsurf / Cloud Code |
+| :--- | :--- | :--- | :--- |
+| **Manifest Entrypoint** | [plugin.json](plugin.json), [hooks.json](hooks.json) | [CLAUDE.md](CLAUDE.md), [.claude/settings.json](.claude/settings.json) | [AGENTS.md](AGENTS.md), [.cursorrules](.cursorrules), [.mcp.json](.mcp.json) |
+| **Pre-Turn Grounding** | `PreInvocation` ([kg_pre_invocation](src/hooks/kg_pre_invocation_hook.py)) | `UserPromptSubmit` ([adapter](src/hooks/multi_harness_hook_adapter.py)) | MCP `query_knowledge_graph` |
+| **Pre-Tool Safety Gate** | `PreToolUse` ([sentinel_dispatch](src/hooks/sentinel_dispatch.py)) | `PreToolUse` ([adapter](src/hooks/multi_harness_hook_adapter.py)) | MCP `verify_quality_circuit_breakers` |
+| **Adversarial Stop Gate** | `Stop` ([black_hat_gate](src/hooks/agent_stop_black_hat_gate.py)) | `Stop` ([adapter](src/hooks/multi_harness_hook_adapter.py)) | [Goldfish](.claude/agents/black-hat-goldfish.md) & [Judge](.claude/agents/black-hat-judge.md) |
+| **20 PD-Q Skills** | [skills/](skills/) & [skills.json](skills.json) | [.claude/commands/](.claude/commands/) (`/<name>`) | `.agents/skills/<name>/SKILL.md` |
+| **5 Custom Subagents** | [agents/](agents/) (`preloadSkills`) | [.claude/agents/](.claude/agents/) | `.agents/agents/<name>/agent.md` |
+| **7 MCP Servers** | [mcp_config.json](mcp_config.json) (`alwaysLoad`) | [.mcp.json](.mcp.json) | [.mcp.json](.mcp.json) |

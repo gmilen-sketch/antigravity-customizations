@@ -74,12 +74,12 @@ When **Prompt 1** completes, your agent will output a verification summary match
 
 | Target | Behavior & Outcome | Status |
 | :--- | :--- | :--- |
-| `legacy_standalone_backup/` & `LEGACY_CUSTOMIZATIONS_REVIEW.md` | Pre-existing rules, skills, subagents, hooks, and MCPs backed up & reviewed for side-by-side integration | ✅ |
-| `plugin.json` & `plugins/agy-*` | Root `v1.4.0` plugin, `enterprise_architect` bundle, and `4` modular packs installed | ✅ |
-| `knowledge_graph.json` (`OKF v0.2`) | Bitemporal Knowledge Graph seeded (`17` nodes, `31` edges, `< 1 ms` warm cache) | ✅ |
-| `skills.json` (`20` PD-Q Skills) | `7` Tier-1 always-on skills (`-58%` token drop) + `13` Tier-2 dynamic skills active | ✅ |
-| `agents.json` (`5` Subagents) | `black-hat-goldfish`, `black-hat-judge`, `black-hat-critic`, `dreaming`, `housekeeper` ready | ✅ |
-| `rules.json` (`3` Arm B Rules) | `GEMINI.md`, `AGENTS.md`, and `no-bullshit.md` (`< 7 KB` total budget) active | ✅ |
-| `hooks.json` (`ParseHooks` Schema) | `sentinel-policy-guard`, `knowledge-graph-grounding`, `black-hat-completion-gate` active | ✅ |
-| `mcp_config.json` & `sidecars.json` | `7` Eager MCP servers (`alwaysLoad: true`) + `3` zero-permission sidecars ready | ✅ |
-| `tests/test_customizations_suite.py` | All `27/27` clean-room, Wave-12, Dreaming, and deployment verification tests pass | ✅ |
+| **Legacy Backup & Review** | Prior rules, skills, subagents, hooks, and MCPs backed up & reviewed in `LEGACY_CUSTOMIZATIONS_REVIEW.md` | ✅ |
+| [**plugin.json**](plugin.json) & [**plugins/**](plugins/) | Root `v1.4.0` plugin, `enterprise_architect` bundle, and 4 modular domain packs installed | ✅ |
+| [**knowledge_graph.seed.json**](resources/knowledge_graph.seed.json) | Bitemporal Knowledge Graph (`OKF v0.2`) seeded (`17` nodes, `31` edges, `< 1 ms` warm cache) | ✅ |
+| [**skills.json**](skills.json) (`20` Skills) | `7` Tier-1 always-on skills (`-58%` token drop) + `13` Tier-2 dynamic skills active | ✅ |
+| [**agents.json**](agents.json) (`5` Subagents) | Goldfish, Judge, Critic, Dreaming Reasoner, and Workspace Housekeeper subagents ready | ✅ |
+| [**rules.json**](rules.json) (`3` Arm B Rules) | [GEMINI.md](rules/GEMINI.md), [AGENTS.md](rules/AGENTS.md), and [no-bullshit.md](rules/no-bullshit.md) (`< 7 KB` total budget) active | ✅ |
+| [**hooks.json**](hooks.json) (`ParseHooks`) | `sentinel-policy-guard`, `knowledge-graph-grounding`, and `black-hat-completion-gate` active | ✅ |
+| [**mcp_config.json**](mcp_config.json) & [**sidecars.json**](sidecars.json) | `7` Eager MCP servers (`alwaysLoad: true`) + `3` zero-permission sidecars ready | ✅ |
+| [**test_customizations_suite.py**](tests/test_customizations_suite.py) | All `27/27` clean-room, Wave-12, Dreaming, and deployment verification tests pass | ✅ |
