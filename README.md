@@ -1,47 +1,46 @@
-# Antigravity Customizations Suite (`v1.4.0`)
+# Antigravity Customizations Suite (v1.4.0)
 
-**Release:** `v1.4.0` &nbsp;|&nbsp; **Verification:** `27/27 Tests Passing` &nbsp;|&nbsp; **Primitives:** `7 Core + 4 Domain Packs` &nbsp;|&nbsp; **License:** [MIT](LICENSE)
+**Release:** `v1.4.0` · **Tests:** `27/27 Passing` · **Scope:** `7 Primitives + 4 Domain Packs` · **License:** [MIT](LICENSE)
 
-**Quick Links:** [💬 Copy-Paste Agent Prompt](#-option-0-copy-paste-prompt-for-your-agent-harness-zero-manual-cli-required) • [📄 All Prompts (`DEPLOY_PROMPT.md`)](DEPLOY_PROMPT.md) • [🧩 4 Modular Packs](#-all-in-one-plugin-role-bundle--4-modular-domain-plugin-packs) • [📦 What Is Included](#-what-is-included-v140--19-clean-room-stability--wave-12-upgrades) • [📖 Skill & Subagent Directory (`AGENT_DIRECTORY.md`)](AGENT_DIRECTORY.md) • [⚙️ Workflow Directory (`WORKFLOW_DIRECTORY.md`)](WORKFLOW_DIRECTORY.md) • [🏗️ Architecture (`ARCHITECTURE.md`)](ARCHITECTURE.md)
+**Quick Links:** [Copy-Paste Prompt](#-option-0-copy-paste-prompt-for-your-agent-harness) · [All Prompts](DEPLOY_PROMPT.md) · [4 Domain Packs](#-all-in-one-plugin-role-bundle--4-modular-domain-plugin-packs) · [Included Components](#-what-is-included-v140--19-clean-room-stability--wave-12-upgrades) · [Skills & Subagents](AGENT_DIRECTORY.md) · [Workflows & MCPs](WORKFLOW_DIRECTORY.md) · [Architecture](ARCHITECTURE.md)
 
-* **100% Standalone Customer-Facing Customizations Package**: Bundles all **7 Antigravity Plugin Primitives** ([`plugin.json`](plugin.json) with `20` discovery `keywords`, [`20 PD-Q Skills`](skills/) with `7` Tier-1 [`skills.json`](skills.json) `include_only` token optimization, [`5 Subagents`](agents/) with subagent-scoped `hooks.json`, [`3 Arm B Sentinel Rules`](rules/), `jsonhook.ParseHooks()`-compliant [`hooks.json`](hooks.json) with [`run_hook_safe.sh`](src/hooks/run_hook_safe.sh) fail-open wrapper + Zero-Touch Turn-1 [`lazy_plugin_bootstrap.py`](src/hooks/lazy_plugin_bootstrap.py), [`7 Eager MCP Servers`](mcp_config.json), and [`3 Zero-Permission Sidecars`](sidecars.json)).
-* **Modular & Multi-Harness Ready**: Ships with **4 Modular Domain Plugin Packs** ([`plugins/agy-*`](plugins/)), **Dual-Mode Execution Router** ([`src/hooks/execution_mode_router.py`](src/hooks/execution_mode_router.py)), **12 Wave-12 Graduated Slim Kernels (`AGW-W12-01..13`)**, **Prior Customization Backup & Non-Destructive Merge (`--backup-existing` / `--merge-legacy`)**, and an official **Role Bundle** ([`bundle-antigravity-customizations.json`](_agents/bundles/enterprise_architect/bundle-antigravity-customizations.json)) — with **zero Web Hub server, zero external proxy, and zero Nginx/Terraform infrastructure**.
-* **Supported Harnesses**: Loadable in one command into **Antigravity CLI (`agy`)**, **Antigravity 2.0 IDE / Web**, **Claude Code (`claude` CLI)**, **Cursor**, **Windsurf**, **Google Cloud Code**, or any MCP-compatible agent harness.
+* **Complete 7-Primitive Customizations Suite**: Ships [plugin.json](plugin.json) (20 discovery keywords), [20 PD-Q Skills](skills/) (7 Tier-1 in [skills.json](skills.json)), [5 Subagents](agents/) with scoped hooks, [3 Arm B Rules](rules/), `ParseHooks`-compliant [hooks.json](hooks.json) with [run_hook_safe.sh](src/hooks/run_hook_safe.sh) and Turn-1 [lazy_plugin_bootstrap.py](src/hooks/lazy_plugin_bootstrap.py), [7 Eager MCP Servers](mcp_config.json), and [3 Zero-Permission Sidecars](sidecars.json).
+* **Modular Packs, Wave-12 Kernels & Safe Legacy Merge**: Includes [4 Modular Domain Packs](plugins/), the [Dual-Mode Router](src/hooks/execution_mode_router.py), 12 Wave-12 slim kernels (`AGW-W12-01` to `13`), automatic backup and non-destructive merge of prior user customizations (`--backup-existing` and `--merge-legacy`), and the [Enterprise Role Bundle](_agents/bundles/enterprise_architect/bundle-antigravity-customizations.json) — with zero Web Hub server or proxy bloat.
+* **Cross-Harness Ready**: Installs in one command across **Antigravity CLI** (`agy`), **Antigravity 2.0 IDE / Web**, **Claude Code** (`claude`), **Cursor**, **Windsurf**, **Google Cloud Code**, and any MCP-compatible harness.
 
 ---
 
 ## 🚀 1-Command Quick Start & Copy-Paste Agent Deployment Prompt
 
-### 💬 Option 0: Copy-Paste Prompt for Your Agent Harness (Zero Manual CLI Required)
+### 💬 Option 0: Copy-Paste Prompt for Your Agent Harness
 
-Copy and paste the prompt below directly into **Antigravity 2.0 IDE**, **Antigravity Web Hub**, **Antigravity CLI (`agy`)**, **Claude Code (`claude`)**, **Cursor**, **Windsurf**, or **Google Cloud Code** (additional modular and rollback prompts are in [`DEPLOY_PROMPT.md`](DEPLOY_PROMPT.md)):
+Paste this prompt directly into **Antigravity 2.0 IDE / Web**, **Antigravity CLI**, **Claude Code**, **Cursor**, **Windsurf**, or **Cloud Code** (4 additional modular, legacy-merge, and rollback prompts are in [DEPLOY_PROMPT.md](DEPLOY_PROMPT.md)):
 
 ```text
-Deploy and verify the Antigravity Customizations Suite (v1.4.0) in this environment, safely backing up and reviewing any pre-existing user customizations, by executing these exact steps without interactive prompts:
+Deploy and verify the Antigravity Customizations Suite (v1.4.0) without interactive
+prompts, safely backing up and reviewing any pre-existing user customizations:
 
 1. Clone or update the clean-room repository into ~/antigravity-customizations:
-   if [ -d "$HOME/antigravity-customizations/.git" ]; then
-     git -C "$HOME/antigravity-customizations" fetch --depth 1 origin main && git -C "$HOME/antigravity-customizations" reset --hard origin/main
-   else
-     rm -rf "$HOME/antigravity-customizations"
-     git clone --depth 1 https://github.com/gmilen-sketch/antigravity-customizations.git "$HOME/antigravity-customizations"
-   fi
+   git clone --depth 1 \
+     https://github.com/gmilen-sketch/antigravity-customizations.git \
+     "$HOME/antigravity-customizations" 2>/dev/null || \
+   (git -C "$HOME/antigravity-customizations" fetch --depth 1 origin main && \
+    git -C "$HOME/antigravity-customizations" reset --hard origin/main)
 
-2. Back up any pre-existing user customizations (rules, skills, subagents, hooks.json, mcp_config.json, CLAUDE.md, .cursorrules) into ~/.gemini/antigravity/plugin_data/antigravity-customizations/legacy_standalone_backup/ before installing:
-   python3 -B "$HOME/antigravity-customizations/src/hooks/lazy_plugin_bootstrap.py" --backup-existing --home "$HOME"
+2. Back up pre-existing rules, skills, subagents, hooks, and MCP configs, install
+   all 7 primitives + 4 domain packs, and run the 27-test verification suite:
+   cd "$HOME/antigravity-customizations" && \
+     python3 -B src/hooks/lazy_plugin_bootstrap.py --backup-existing --home "$HOME" && \
+     ./scripts/install.sh --target all --verify && \
+     (command -v agy >/dev/null 2>&1 && agy plugin install "$PWD" || true)
 
-3. Install the Unified Plugin, 4 Modular Domain Packs (agy-core-governance, agy-knowledge-graph, agy-cloud-architect, agy-workspace-automation), Role Bundle, Bitemporal Knowledge Graph, 20 PD-Q Skills, 5 Subagents, 3 Arm B Rules, 3 ParseHooks Lifecycle Hooks, 7 Eager MCP Servers, and 3 Zero-Permission Sidecars, and run the built-in 7-primitive + unit-test verifier:
-   cd "$HOME/antigravity-customizations" && ./scripts/install.sh --target all --verify
+3. If a local Antigravity Language Server is listening on port 8080 or 8081, probe
+   GetAllSkills, GetAllCustomAgentConfigs, and GetMcpServerStates to confirm live load.
 
-4. If the native `agy` CLI is available on PATH, also register the root plugin via:
-   command -v agy >/dev/null 2>&1 && agy plugin install "$HOME/antigravity-customizations" || true
-
-5. If an Antigravity 2.0 / Web Hub Language Server is listening locally on port 8080 or 8081, probe `/exa.language_server_pb.LanguageServerService/GetAllSkills`, `GetAllCustomAgentConfigs`, and `GetMcpServerStates` to confirm live runtime registration.
-
-6. Review `~/.gemini/antigravity/plugin_data/antigravity-customizations/LEGACY_CUSTOMIZATIONS_REVIEW.md` (and `legacy_customizations_review.json`):
-   - If pre-existing customizations were found (`discovered_count > 0`), list every backed-up rule, skill, subagent, hook, and MCP server, explain which items already coexist automatically (`AUTO_COEXISTING`) vs. which are ready to merge (`BACKED_UP_FOR_MERGE`), and offer to run `python3 -B "$HOME/antigravity-customizations/src/hooks/lazy_plugin_bootstrap.py" --merge-legacy --home "$HOME"` to non-destructively integrate custom rules (`legacy-user-customizations.md`), custom hooks, and custom MCP servers alongside the v1.4.0 suite.
-
-7. Report a 3-column Markdown table (`Target | Behavior & Outcome | Status`) confirming all 7 customization primitives, pre-existing customization backup/integration status, and the clean-room unit test suite passed with exit code 0.
+4. Inspect ~/.gemini/antigravity/plugin_data/antigravity-customizations/
+   LEGACY_CUSTOMIZATIONS_REVIEW.md: if pre-existing customizations were found, list
+   what coexists automatically vs. what can be merged via `lazy_plugin_bootstrap.py
+   --merge-legacy --home "$HOME"`, and output a 3-column verification table.
 ```
 
 ### Option A: Antigravity CLI (`agy`) & Antigravity 2.0 (v2.24.0+ / CLI v1.4.0+)
@@ -50,20 +49,20 @@ Deploy and verify the Antigravity Customizations Suite (v1.4.0) in this environm
 # Install directly via native Antigravity plugin manager:
 agy plugin install .
 
-# Or install the full plugin bundle + 4 modular domain plugins into ~/.gemini/config/plugins/ and verify:
+# Or install the full plugin bundle + 4 domain packs and verify:
 ./scripts/install.sh --target agy --verify
 
-# Clean-slate uninstall (restores backed-up standalone rules and removes plugin_data):
+# Clean-slate uninstall (restores backed-up rules and removes plugin_data):
 ./scripts/uninstall.sh
 ```
 
 ### Option B: Claude Code (`claude` CLI)
 
 ```bash
-# Install global Claude Code hooks, subagents (.claude/agents/), and 20 slash commands (.claude/commands/):
+# Install global Claude Code hooks, subagents, and 20 slash commands:
 ./scripts/install.sh --target claude-code
 
-# Or run claude directly inside this repository (auto-loads CLAUDE.md, .claude/settings.json, and .mcp.json):
+# Or run claude inside this repo (loads CLAUDE.md, settings.json, .mcp.json):
 claude
 ```
 
@@ -78,7 +77,7 @@ claude
 
 ## 🧩 All-In-One Plugin, Role Bundle & 4 Modular Domain Plugin Packs
 
-To prevent an all-or-nothing toggle in the Antigravity UI **Plugins** page, this repository provides the root all-in-one plugin ([`plugin.json`](plugin.json)), the curated role bundle ([`bundle.json`](_agents/bundles/enterprise_architect/bundle-antigravity-customizations.json)), and **4 modular domain plugins** under [`plugins/`](plugins/) (registered via [`plugins.json`](plugins.json)):
+To prevent an all-or-nothing toggle in the Antigravity UI **Plugins** page, this repository provides the root all-in-one plugin ([plugin.json](plugin.json)), the curated role bundle ([bundle.json](_agents/bundles/enterprise_architect/bundle-antigravity-customizations.json)), and **4 modular domain plugins** under [plugins/](plugins/) (registered via [plugins.json](plugins.json)):
 
 | Plugin / Bundle | Scope | Bundled Capabilities |
 | :--- | :--- | :--- |
@@ -109,7 +108,7 @@ To prevent an all-or-nothing toggle in the Antigravity UI **Plugins** page, this
 
 ## 🧪 Verification & Clean-Room Audit
 
-Run the 27-test verification suite ([`tests/test_customizations_suite.py`](tests/test_customizations_suite.py) + [`tests/test_v140_wave12_and_hooks.py`](tests/test_v140_wave12_and_hooks.py) — zero bytecode, zero Web Hub files, zero binary/internal leaks across all tracked files and `git log -p`, E2E 6-scenario Dreaming & Anti-Overfitting lifecycle, copy-paste deployment & legacy backup/merge verification, and all 19 `v1.4.0` stability + Wave-12 kernel assertions):
+Run the 27-test verification suite ([tests/test_customizations_suite.py](tests/test_customizations_suite.py) and [tests/test_v140_wave12_and_hooks.py](tests/test_v140_wave12_and_hooks.py) — zero bytecode, zero Web Hub files, zero binary/internal leaks across all tracked files and `git log -p`, E2E 6-scenario Dreaming & Anti-Overfitting lifecycle, copy-paste deployment & legacy backup/merge verification, and all 19 `v1.4.0` stability + Wave-12 kernel assertions):
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 -B tests/test_customizations_suite.py -v

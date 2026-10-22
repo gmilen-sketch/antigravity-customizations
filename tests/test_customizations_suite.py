@@ -755,6 +755,17 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
             self.assertIn("LEGACY_CUSTOMIZATIONS_REVIEW.md", txt, f"Missing legacy customizations review step in {doc_name}")
             self.assertIn("--merge-legacy", txt, f"Missing --merge-legacy integration command in {doc_name}")
             self.assertIn("GetAllSkills", txt, f"Missing Hub LanguageServer verification probe in {doc_name}")
+            in_code = False
+            for line_no, line in enumerate(txt.splitlines(), 1):
+                if line.startswith("```"):
+                    in_code = not in_code
+                    continue
+                if in_code:
+                    self.assertLessEqual(
+                        len(line),
+                        88,
+                        f"{doc_name}:{line_no} code-block line length {len(line)} > 88 causes horizontal scrolling in GitHub <pre>",
+                    )
 
         tmp_home = tempfile.mkdtemp()
         try:
