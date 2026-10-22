@@ -1,7 +1,7 @@
 # Antigravity Enterprise Cloud Architect & Autonomy — Role Bundle
 
 This directory contains the `bundle-antigravity-customizations.json` role bundle
-manifest conforming to `bundle.schema.json` (`v1.3.0`).
+manifest conforming to `bundle.schema.json` (`v1.4.0`).
 
 *   **All-In-One Plugin**: `plugin.json` (`antigravity-customizations`)
 *   **Modular Domain Plugins**:

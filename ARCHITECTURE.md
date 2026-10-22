@@ -1,4 +1,4 @@
-# Architecture — Antigravity Customizations Suite (v1.0.0)
+# Architecture — Antigravity Customizations Suite (v1.4.0)
 
 ## 1. Design Philosophy: Pure Customizations, Zero Server Infrastructure
 

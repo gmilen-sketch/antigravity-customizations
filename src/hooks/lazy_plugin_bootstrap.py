@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unified Plugin + Host-Companion Reconciler (`lazy_plugin_bootstrap.py` v1.3.0)
+Unified Plugin + Host-Companion Reconciler (`lazy_plugin_bootstrap.py` v1.4.0)
 for the Customer-Facing Antigravity Customizations Suite.
 
 Triggered automatically in two ways (Single Install / Update Flow):

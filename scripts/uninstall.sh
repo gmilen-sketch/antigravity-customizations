@@ -65,4 +65,4 @@ if [[ "$DRY_RUN" == "false" ]]; then
     done
 fi
 
-echo "✅ Antigravity Customizations Suite v1.3.0 uninstalled cleanly (vanilla clean slate verified)!"
+echo "✅ Antigravity Customizations Suite v1.4.0 uninstalled cleanly (vanilla clean slate verified)!"

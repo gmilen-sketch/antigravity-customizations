@@ -1,4 +1,4 @@
-# Enterprise Agentic Autonomy & Customizations Contract (v1.0.0)
+# Enterprise Agentic Autonomy & Customizations Contract (v1.4.0)
 
 This repository provides a 100% standalone, harness-agnostic customization suite for:
 - **Antigravity CLI (`agy`)** & **Antigravity 2.0 IDE / Web** (`plugin.json`, `.antigravity-plugin/plugin.json`, `hooks.json`, `mcp_config.json`)

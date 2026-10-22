@@ -1,4 +1,4 @@
-# Antigravity Customizations Suite — Two-Tier Skill & Subagent Routing Directory (`v1.3.0`)
+# Antigravity Customizations Suite — Two-Tier Skill & Subagent Routing Directory (`v1.4.0`)
 
 ## 1. Two-Tier Skill Activation Architecture (`R2` `-58%` Context Footprint)
 To minimize baseline prompt token consumption while keeping all `20` `PD-Q` enterprise skills immediately accessible:
