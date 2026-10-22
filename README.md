@@ -6,7 +6,33 @@ Loadable in one command into **Antigravity CLI (`agy`)**, **Antigravity 2.0 IDE 
 
 ---
 
-## 🚀 1-Command Quick Start & Clean-Slate Uninstall
+## 🚀 1-Command Quick Start & Copy-Paste Agent Deployment Prompt
+
+### 💬 Option 0: Copy-Paste Prompt for Your Agent Harness (Zero Manual CLI Required)
+
+Copy and paste the prompt below directly into **Antigravity 2.0 IDE**, **Antigravity Web Hub**, **Antigravity CLI (`agy`)**, **Claude Code (`claude`)**, **Cursor**, **Windsurf**, or **Google Cloud Code** (additional modular and rollback prompts are in [`DEPLOY_PROMPT.md`](DEPLOY_PROMPT.md)):
+
+```text
+Deploy and verify the Antigravity Customizations Suite (v1.4.0) in this environment by executing these exact steps without interactive prompts:
+
+1. Clone or update the clean-room repository into ~/antigravity-customizations:
+   if [ -d "$HOME/antigravity-customizations/.git" ]; then
+     git -C "$HOME/antigravity-customizations" fetch --depth 1 origin main && git -C "$HOME/antigravity-customizations" reset --hard origin/main
+   else
+     rm -rf "$HOME/antigravity-customizations"
+     git clone --depth 1 https://github.com/gmilen-sketch/antigravity-customizations.git "$HOME/antigravity-customizations"
+   fi
+
+2. Install the Unified Plugin, 4 Modular Domain Packs (agy-core-governance, agy-knowledge-graph, agy-cloud-architect, agy-workspace-automation), Role Bundle, Bitemporal Knowledge Graph, 20 PD-Q Skills, 5 Subagents, 3 Arm B Rules, 3 ParseHooks Lifecycle Hooks, 7 Eager MCP Servers, and 3 Zero-Permission Sidecars, and run the built-in 7-primitive + unit-test verifier:
+   cd "$HOME/antigravity-customizations" && ./scripts/install.sh --target all --verify
+
+3. If the native `agy` CLI is available on PATH, also register the root plugin via:
+   command -v agy >/dev/null 2>&1 && agy plugin install "$HOME/antigravity-customizations" || true
+
+4. If an Antigravity 2.0 / Web Hub Language Server is listening locally on port 8080 or 8081, probe `/exa.language_server_pb.LanguageServerService/GetAllSkills`, `GetAllCustomAgentConfigs`, and `GetMcpServerStates` to confirm live runtime registration.
+
+5. Report a 3-column Markdown table (`Target | Behavior & Outcome | Status`) confirming all 7 customization primitives and the clean-room unit test suite passed with exit code 0.
+```
 
 ### Option A: Antigravity CLI (`agy`) & Antigravity 2.0 (v2.24.0+ / CLI v1.4.0+)
 
@@ -14,8 +40,8 @@ Loadable in one command into **Antigravity CLI (`agy`)**, **Antigravity 2.0 IDE 
 # Install directly via native Antigravity plugin manager:
 agy plugin install .
 
-# Or install the full plugin bundle + 4 modular domain plugins into ~/.gemini/config/plugins/:
-./scripts/install.sh --target agy
+# Or install the full plugin bundle + 4 modular domain plugins into ~/.gemini/config/plugins/ and verify:
+./scripts/install.sh --target agy --verify
 
 # Clean-slate uninstall (restores backed-up standalone rules and removes plugin_data):
 ./scripts/uninstall.sh

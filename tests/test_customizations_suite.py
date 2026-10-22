@@ -741,6 +741,35 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
         self.assertTrue(wakeup["truncated"])
         self.assertLessEqual(wakeup["byte_length"], 800)
 
+    def test_20b_copy_paste_deploy_prompt_and_install_verify_flag(self):
+        """Verifies DEPLOY_PROMPT.md, README.md copy-paste deployment prompt, and ./scripts/install.sh --verify."""
+        deploy_md = pathlib.Path(REPO_ROOT, "DEPLOY_PROMPT.md")
+        readme_md = pathlib.Path(REPO_ROOT, "README.md")
+        self.assertTrue(deploy_md.is_file(), "Missing DEPLOY_PROMPT.md in repo root")
+        deploy_txt = deploy_md.read_text(encoding="utf-8")
+        readme_txt = readme_md.read_text(encoding="utf-8")
+
+        for doc_name, txt in (("DEPLOY_PROMPT.md", deploy_txt), ("README.md", readme_txt)):
+            self.assertIn("https://github.com/gmilen-sketch/antigravity-customizations.git", txt, f"Missing repo URL in {doc_name}")
+            self.assertIn("./scripts/install.sh --target all --verify", txt, f"Missing --verify install command in {doc_name}")
+            self.assertIn("GetAllSkills", txt, f"Missing Hub LanguageServer verification probe in {doc_name}")
+
+        tmp_home = tempfile.mkdtemp()
+        try:
+            res = subprocess.run(
+                ["bash", os.path.join(REPO_ROOT, "scripts", "install.sh"), "--target", "all", "--home", tmp_home, "--verify"],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "AGY_INSTALL_VERIFY_IN_PROGRESS": "1"},
+                check=True,
+            )
+            self.assertIn('"verdict": "PASS"', res.stdout)
+            self.assertIn('"primitives_verified": "7/7"', res.stdout)
+        finally:
+            shutil.rmtree(tmp_home, ignore_errors=True)
+
 
 if __name__ == "__main__":
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from test_v140_wave12_and_hooks import TestV140Wave12AndHookHardening  # noqa: F401
     unittest.main()

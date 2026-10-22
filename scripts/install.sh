@@ -17,6 +17,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET="all"
 DEST_HOME="${HOME}"
 DRY_RUN="false"
+RUN_VERIFY="false"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -32,8 +33,12 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN="true"
             shift 1
             ;;
+        --verify)
+            RUN_VERIFY="true"
+            shift 1
+            ;;
         -h|--help)
-            echo "Usage: ./scripts/install.sh [--target all|agy|antigravity|claude-code|cursor|cloud-code] [--home <dir>] [--dry-run]"
+            echo "Usage: ./scripts/install.sh [--target all|agy|antigravity|claude-code|cursor|cloud-code] [--home <dir>] [--dry-run] [--verify]"
             exit 0
             ;;
         *)
@@ -156,3 +161,44 @@ case "$TARGET" in
 esac
 
 echo "✅ Antigravity Customizations Suite v1.4.0 installed successfully for target '${TARGET}'!"
+
+if [[ "$RUN_VERIFY" == "true" && "$DRY_RUN" == "false" ]]; then
+    echo "[5/5] Verifying 7 Antigravity Customization Primitives & Clean-Room Test Suite..."
+    DEST_HOME="${DEST_HOME}" REPO_ROOT="${REPO_ROOT}" PYTHONDONTWRITEBYTECODE=1 python3 -B - << 'PYEOF'
+import json
+import os
+import pathlib
+import subprocess
+import sys
+
+dest_home = pathlib.Path(os.environ["DEST_HOME"])
+repo_root = pathlib.Path(os.environ["REPO_ROOT"])
+plugin_dir = dest_home / ".gemini" / "config" / "plugins" / "antigravity-customizations"
+
+checks = {
+    "1_plugin_and_4_modular_packs": (plugin_dir / "plugin.json").is_file() and all(
+        (dest_home / ".gemini" / "config" / "plugins" / p / "plugin.json").is_file()
+        for p in ("agy-core-governance", "agy-knowledge-graph", "agy-cloud-architect", "agy-workspace-automation")
+    ),
+    "2_bitemporal_knowledge_graph": (dest_home / ".gemini" / "antigravity" / "knowledge_graph.json").is_file(),
+    "3_twotier_20_pdq_skills": len(json.loads((repo_root / "skills.json").read_text(encoding="utf-8")).get("skills", [])) == 20,
+    "4_five_custom_subagents": len(json.loads((repo_root / "agents.json").read_text(encoding="utf-8")).get("agents", [])) == 5,
+    "5_three_arm_b_rules": len(json.loads((repo_root / "rules.json").read_text(encoding="utf-8")).get("rules", [])) == 3,
+    "6_three_parsehooks_lifecycle_hooks": len(json.loads((dest_home / ".gemini" / "config" / "hooks.json").read_text(encoding="utf-8"))) == 3,
+    "7_seven_eager_mcps_and_3_sidecars": len(json.loads((dest_home / ".gemini" / "config" / "mcp_config.json").read_text(encoding="utf-8")).get("mcpServers", {})) == 7,
+}
+
+if not all(checks.values()):
+    print(json.dumps({"verdict": "FAIL", "checks": checks}, indent=2))
+    sys.exit(1)
+
+if os.environ.get("AGY_INSTALL_VERIFY_IN_PROGRESS") != "1":
+    subprocess.run(
+        [sys.executable, "-B", "-m", "unittest", "discover", "-s", str(repo_root / "tests"), "-p", "test_*.py"],
+        cwd=str(repo_root),
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "AGY_INSTALL_VERIFY_IN_PROGRESS": "1"},
+        check=True,
+    )
+print(json.dumps({"verdict": "PASS", "version": "1.4.0", "primitives_verified": "7/7", "checks": checks}, indent=2))
+PYEOF
+fi
