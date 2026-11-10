@@ -49,6 +49,27 @@
       "args": [
         "src/mcp_google_workspace/index.js"
       ]
+    },
+    "browser_cdp": {
+      "command": "python3",
+      "args": [
+        "-B",
+        "src/mcp_servers/browser_cdp_mcp.py"
+      ]
+    },
+    "cloud_telemetry": {
+      "command": "python3",
+      "args": [
+        "-B",
+        "src/mcp_servers/cloud_telemetry_mcp.py"
+      ]
+    },
+    "workspace_docs": {
+      "command": "python3",
+      "args": [
+        "-B",
+        "src/mcp_servers/workspace_docs_mcp.py"
+      ]
     }
   }
 }

@@ -19,7 +19,20 @@ import time
 from typing import Any, Dict, List
 
 
-INTRADAY_LESSONS_PATH = "/dev/shm/intraday_lessons.jsonl" if os.path.exists("/dev/shm") else "/tmp/intraday_lessons.jsonl"
+def _resolve_writable_lessons_path() -> str:
+    """Resolves a multi-user permission-safe intraday lessons JSONL path."""
+    override = os.environ.get("AGW_INTRADAY_LESSONS_PATH")
+    if override:
+        return override
+    uid = os.getuid() if hasattr(os, "getuid") else 0
+    candidate = f"/dev/shm/intraday_lessons_{uid}.jsonl" if os.path.exists("/dev/shm") else f"/tmp/intraday_lessons_{uid}.jsonl"
+    legacy = "/dev/shm/intraday_lessons.jsonl" if os.path.exists("/dev/shm") else "/tmp/intraday_lessons.jsonl"
+    if os.path.exists(legacy) and os.access(legacy, os.R_OK | os.W_OK):
+        return legacy
+    return candidate
+
+
+INTRADAY_LESSONS_PATH = _resolve_writable_lessons_path()
 LESSON_TTL_SECONDS = 12 * 3600
 
 

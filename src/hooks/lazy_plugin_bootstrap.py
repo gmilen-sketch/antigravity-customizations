@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Unified Plugin + Host-Companion Reconciler (`lazy_plugin_bootstrap.py` v1.4.0)
+Unified Plugin + Host-Companion Reconciler (`lazy_plugin_bootstrap.py` v1.5.0)
 for the Customer-Facing Antigravity Customizations Suite.
 
 Triggered automatically in two ways (Single Install / Update Flow):
 1. Zero-Touch Turn-1 / Version-Bump `PreInvocation` Hook (`<plugin_root>/hooks.json`):
    - Fast path (`version == bootstrapped_version.json` and warm cache exists): `< 1 ms` exit.
    - Cold start or version bump:
-     * Seeds `knowledge_graph.json` and `/dev/shm/kg_warm_cache.json` from
-       `resources/knowledge_graph.seed.json` + `kb/` (`OKF v0.2`).
+     * Initializes empty `knowledge_graph.json` and `/dev/shm/kg_warm_cache.json` skeleton
+       from `resources/knowledge_graph.seed.json` (`0` pre-loaded nodes or dossiers).
      * Backs up duplicate standalone loose rules (`~/.gemini/config/rules/{GEMINI,AGENTS,no-bullshit}.md`)
        into `${PLUGIN_DATA}/legacy_standalone_backup/` (`R1`).
      * Provisions `~/.gemini/config/projects/automations.json` (`id: "automations"`,
@@ -44,6 +44,9 @@ MANAGED_MCP_KEYS = (
     "google_workspace",
     "playwright_scraper",
     "six_hats_evaluator",
+    "browser_cdp",
+    "cloud_telemetry",
+    "workspace_docs",
 )
 MANAGED_AGENTS = (
     "black-hat-goldfish",
@@ -68,7 +71,7 @@ def _read_plugin_version(repo_root: pathlib.Path) -> str:
     ver_file = repo_root / "VERSION"
     if ver_file.is_file():
         return ver_file.read_text(encoding="utf-8").strip()
-    return "1.4.0"
+    return "1.5.0"
 
 
 def is_sandbox_or_bundled_nondev_host(home_dir: str) -> bool:

@@ -28,6 +28,7 @@ import tempfile
 import unittest
 
 sys.dont_write_bytecode = True
+os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC_DIR = os.path.join(REPO_ROOT, "src")
@@ -136,7 +137,7 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
     def test_02_antigravity_cli_and_2_0_plugin_manifests(self):
         """Verifies plugin.json schema (v1.4.0), 20 keywords (zero deprecated duplicate tags), logo, suggestedPrompts, agents.json, skills.json, rules.json, plugins.json, sidecars.json."""
         ver = pathlib.Path(REPO_ROOT, "VERSION").read_text(encoding="utf-8").strip()
-        self.assertEqual(ver, "1.4.0")
+        self.assertEqual(ver, "1.5.0")
         self.assertTrue(pathlib.Path(REPO_ROOT, "assets", "logo.svg").is_file())
 
         for rel in ["plugin.json", ".antigravity-plugin/plugin.json", ".gemini-plugin/plugin.json", ".claude-plugin/plugin.json"]:
@@ -144,7 +145,7 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
             self.assertTrue(p.is_file(), f"Missing {rel}")
             data = json.loads(p.read_text(encoding="utf-8"))
             self.assertEqual(data["name"], "antigravity-customizations")
-            self.assertEqual(data["version"], "1.4.0")
+            self.assertEqual(data["version"], "1.5.0")
             self.assertTrue(set(data.keys()).issubset(ALLOWED_PLUGIN_JSON_KEYS), f"Unexpected keys in {rel}: {set(data.keys())}")
             self.assertNotIn("tags", data, f"Deprecated duplicate 'tags' key must be absent in {rel}")
             self.assertEqual(len(data["suggestedPrompts"]), 3)
@@ -180,16 +181,16 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
         for fn in ("AGENTS.md", "GEMINI.md", ".cursorrules", ".mcp.json"):
             self.assertTrue(pathlib.Path(REPO_ROOT, fn).is_file(), f"Missing {fn}")
         mcp_data = json.loads(pathlib.Path(REPO_ROOT, ".mcp.json").read_text(encoding="utf-8"))
-        self.assertEqual(len(mcp_data["mcpServers"]), 7)
+        self.assertEqual(len(mcp_data["mcpServers"]), 10)
 
     def test_05_multi_harness_hook_adapter_pre_tool_use(self):
-        """Verifies multi_harness_hook_adapter translates Claude Code Bash/PreToolUse payloads and blocks destructive commands."""
+        """Verifies multi_harness_hook_adapter translates Claude Code Bash/PreToolUse payloads and escalates destructive commands via force_ask."""
         bad_res = adapt_pre_tool_use({
             "session_id": "claude-sess-1",
             "tool_name": "Bash",
             "tool_input": {"command": "rm -rf /"},
         })
-        self.assertEqual(bad_res["decision"], "ask")
+        self.assertEqual(bad_res["decision"], "force_ask")
         self.assertEqual(bad_res["hookSpecificOutput"]["permissionDecision"], "ask")
         self.assertEqual(bad_res["rootConversationId"], "claude-sess-1")
 
@@ -220,6 +221,7 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
         from knowledge_graph.kg_mcp_server import EAGER_TOOL_META
         self.assertTrue(EAGER_TOOL_META.get("antigravity/alwaysLoad"))
         mcp_cfg = json.loads(pathlib.Path(REPO_ROOT, "mcp_config.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(mcp_cfg["mcpServers"]), 10)
         for srv_name, srv_cfg in mcp_cfg["mcpServers"].items():
             self.assertTrue(srv_cfg.get("_meta", {}).get("antigravity/alwaysLoad"), f"Missing alwaysLoad on {srv_name}")
             self.assertIs(srv_cfg.get("disabled"), False)
@@ -260,7 +262,7 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
                 text=True,
                 check=True,
             )
-            self.assertIn("v1.4.0 installed successfully", res.stdout)
+            self.assertIn("v1.5.0 installed successfully", res.stdout)
             self.assertTrue(os.path.isfile(os.path.join(tmp_home, ".gemini", "config", "hooks.json")))
             self.assertTrue(os.path.isfile(os.path.join(tmp_home, ".gemini", "config", "plugins", "antigravity-customizations", "plugin.json")))
             self.assertTrue(os.path.isfile(os.path.join(tmp_home, ".gemini", "config", "plugins", "agy-core-governance", "plugin.json")))
@@ -343,12 +345,13 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
         )
         payload = json.loads(res.stdout)
         self.assertEqual(payload["status"], "ok")
-        self.assertEqual(payload["version"], "1.4.0")
+        self.assertEqual(payload["version"], "1.5.0")
         self.assertEqual(payload["skill_count"], 20)
+        self.assertEqual(payload["mcp_server_count"], 10)
         self.assertEqual(payload["plugin_packs"], 4)
 
     def test_14_four_modular_domain_plugins(self):
-        """Verifies the 4 modular domain plugins under plugins/ partition all 20 skills, 5 subagents, and 7 MCP servers."""
+        """Verifies the 4 modular domain plugins under plugins/ partition all 20 skills, 5 subagents, and 10 MCP servers."""
         expected_dirs = {
             "agy-core-governance",
             "agy-knowledge-graph",
@@ -367,7 +370,7 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
             pjson = json.loads((pdir / "plugin.json").read_text(encoding="utf-8"))
             self.assertTrue(set(pjson.keys()).issubset(ALLOWED_PLUGIN_JSON_KEYS))
             self.assertNotIn("tags", pjson)
-            self.assertEqual(pjson["version"], "1.4.0")
+            self.assertEqual(pjson["version"], "1.5.0")
             if (pdir / "skills.json").is_file():
                 sjson = json.loads((pdir / "skills.json").read_text(encoding="utf-8"))
                 all_skills.update(sjson["entries"][0]["include_only"])
@@ -380,7 +383,7 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
 
         self.assertEqual(len(all_skills), 20)
         self.assertEqual(len(all_agents), 5)
-        self.assertEqual(len(all_mcp), 7)
+        self.assertEqual(len(all_mcp), 10)
 
     def test_15_parsehooks_schema_and_cwd_relative_execution(self):
         """Verifies hooks.json uses jsonhook.ParseHooks() map[string]JSONHookSpec schema and executes cleanly from REPO_ROOT."""
@@ -391,13 +394,15 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
         self.assertIn("black-hat-completion-gate", hooks_cfg)
         self.assertNotIn("PostToolUse", json.dumps(hooks_cfg))
 
-        # PreToolUse is grouped (matcher + hooks); PreInvocation and Stop are flat handler arrays
+        # PreToolUse is grouped (matcher + hooks); PreInvocation, PostInvocation, and Stop are flat handler arrays
         pre_tool_group = hooks_cfg["sentinel-policy-guard"]["PreToolUse"][0]
         self.assertIn("matcher", pre_tool_group)
         self.assertIn("hooks", pre_tool_group)
         pre_inv_list = hooks_cfg["knowledge-graph-grounding"]["PreInvocation"]
         self.assertEqual(len(pre_inv_list), 2)
         self.assertIn("command", pre_inv_list[0])
+        post_inv_list = hooks_cfg["black-hat-completion-gate"]["PostInvocation"]
+        self.assertIn("command", post_inv_list[0])
         stop_list = hooks_cfg["black-hat-completion-gate"]["Stop"]
         self.assertIn("command", stop_list[0])
 
@@ -405,6 +410,7 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
         for cmd in [
             pre_tool_group["hooks"][0]["command"],
             pre_inv_list[1]["command"],
+            post_inv_list[0]["command"],
             stop_list[0]["command"],
         ]:
             res = subprocess.run(
@@ -421,17 +427,24 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
             self.assertIn("decision", out)
 
     def test_16_subagent_scoped_hooks_and_lazy_plugin_bootstrap(self):
-        """Verifies subagent-scoped agents/black-hat-{goldfish,judge}/hooks.json (R3), seed KG, and lazy_plugin_bootstrap.py."""
-        for ag in ("black-hat-goldfish", "black-hat-judge"):
+        """Verifies subagent-scoped agents/*/hooks.json across all 5 subagents, seed KG, and lazy_plugin_bootstrap.py."""
+        for ag in (
+            "black-hat-goldfish",
+            "black-hat-judge",
+            "black-hat-critic",
+            "dreaming-improvement-reasoner",
+            "workspace-housekeeper",
+        ):
             hpath = pathlib.Path(REPO_ROOT, "agents", ag, "hooks.json")
             self.assertTrue(hpath.is_file(), f"Missing subagent hooks.json for {ag}")
             hdata = json.loads(hpath.read_text(encoding="utf-8"))
-            self.assertIn("black-hat-subagent-pre-tool-sentinel", hdata)
-            self.assertIn("black-hat-subagent-return-gate", hdata)
+            self.assertEqual(len(hdata), 2)
 
         seed_kg = json.loads(pathlib.Path(REPO_ROOT, "resources", "knowledge_graph.seed.json").read_text(encoding="utf-8"))
-        self.assertEqual(seed_kg["metadata"]["package_version"], "1.4.0")
-        self.assertGreaterEqual(len(seed_kg["entities"]), 4)
+        self.assertEqual(seed_kg["metadata"]["package_version"], "1.5.0")
+        self.assertEqual(seed_kg["nodes"], [])
+        self.assertEqual(seed_kg["entities"], {})
+        self.assertEqual(seed_kg["edges"], [])
 
         res = subprocess.run(
             ["python3", "-B", os.path.join(REPO_ROOT, "src", "hooks", "lazy_plugin_bootstrap.py"), "--self-test"],

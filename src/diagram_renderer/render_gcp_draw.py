@@ -116,6 +116,15 @@ def compile_dsl_to_svg(dsl_text: str) -> str:
     )
 
 
+def render_gcp_draw_to_svg(gcpdraw_code: str, output_path: str = "/tmp/gcp-architecture.svg") -> str:
+    """Compiles a GCP Draw DSL specification to an SVG file and returns the output path."""
+    svg = compile_dsl_to_svg(gcpdraw_code)
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(svg)
+    return output_path
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Clean-Room Orthogonal BENTO Diagram Compiler v15.5")
     parser.add_argument("--input", type=str, help="Input .bento architecture DSL file")

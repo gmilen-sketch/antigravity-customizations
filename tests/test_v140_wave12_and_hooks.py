@@ -160,12 +160,12 @@ class TestV140Wave12AndHookHardening(unittest.TestCase):
         self.assertEqual(dual["args"]["TargetContent"], "old_fn()")
         self.assertEqual(dual["args"]["ReplacementContent"], "new_fn()")
 
-        # Protected file write via write_file alias is caught by R31
+        # Protected file write via write_file alias is caught by R31 (`force_ask`)
         r31_res = evaluate_tool_call({
             "toolName": "write_file",
             "toolArgs": {"Path": "/workspace/hooks.json", "Content": "{}"},
         })
-        self.assertEqual(r31_res["decision"], "ask")
+        self.assertEqual(r31_res["decision"], "force_ask")
 
         # PostToolUse returns empty {} for hooks.proto compatibility
         post_res = evaluate_tool_call({"hookEventName": "PostToolUse", "toolName": "write_file"})

@@ -1,20 +1,20 @@
 ---
 okf_version: "0.2"
 id: antigravity-kb-index
-title: "Antigravity Web Hub — Open Knowledge Format (OKF v0.2) Index"
-summary: "Root entry point for the Antigravity Web Hub Open Knowledge Format (OKF v0.2) knowledge bundle."
+title: "Open Knowledge Format (OKF v0.2) Empty Knowledge Bundle Skeleton"
+summary: "Empty Open Knowledge Format (OKF v0.2) root skeleton with zero pre-loaded dossiers; populated organically by user-authored Markdown dossiers and Nightly Dreaming consolidation."
 type: overview
 status: verified
 confidence: 1.0
-last_verified: "2026-09-30"
-tags: [okf, antigravity, knowledge-graph, architecture, autonomy]
+last_verified: "2026-11-10"
+tags: [okf, skeleton, knowledge-graph]
 ---
 
-# Antigravity Web Hub — Open Knowledge Format (`OKF v0.2`) Bundle
+# Open Knowledge Format (`OKF v0.2`) Empty Knowledge Bundle Skeleton
 
-This directory implements the public **Open Knowledge Format (`OKF v0.2`)** specification ([GoogleCloudPlatform/knowledge-catalog/tree/main/okf](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf)) for LLM-native, citation-backed enterprise knowledge sharing.
+This directory ships as an **empty `OKF v0.2` skeleton** (`0` pre-loaded dossiers, `0` pre-loaded Knowledge Graph entities or edges) conforming to the public [Open Knowledge Format (`OKF v0.2`)](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf) schema.
 
-## Indexed Concept Dossiers
+## Populating Your Own Knowledge Base
 
-* **[Architecture: Antigravity Customizations Topology](architecture/antigravity_hub.md)** (`okf:antigravity-web-hub-architecture`) — Multi-model Vertex AI tier routing, FastMCP STDIO servers, and Bitemporal Knowledge Graph persistence.
-* **[Guide: Autonomous Governance & Lifecycle Hooks](guides/autonomy_lifecycle.md)** (`okf:autonomy-lifecycle-governance`) — Turn-1 Pinned KV-Cache `PreInvocation` grounding, 2-Stage Stateless Goldfish $\rightarrow$ Isolated Judge `Stop` gate (`v4.3`), P0/P1 circuit-breakers, and Nightly Dreaming `v5.2`.
+* Drop project-specific Markdown dossiers with `okf_version: "0.2"` YAML frontmatter under `kb/` (for example `kb/architecture/`, `kb/guides/`, or `kb/reference/`), or let the Nightly Dreaming engine consolidate verified user preferences from your own sessions.
+* Run `python3 -B src/knowledge_graph/validate_okf.py --kb-root kb` to validate frontmatter and `python3 -B src/knowledge_graph/okf_knowledge_compiler.py --kb-root kb` to synchronize user-created dossiers into `knowledge_graph.json`.

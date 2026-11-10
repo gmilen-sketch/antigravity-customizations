@@ -19,7 +19,7 @@ except ImportError:
             def decorator(f):
                 return f
             return decorator
-        def run(self):
+        def run(self, *args, **kwargs):
             print(f"FastMCP server {self.name} initialized.")
 
 from render_mermaid import render_mermaid_to_png, compile_markdown_diagrams

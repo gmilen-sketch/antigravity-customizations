@@ -21,13 +21,24 @@ import math
 import argparse
 from typing import Dict, Any, List
 
+CLI_EXIT_PRINT_TIMEOUT = 3
+
 SUPPORTED_MODES = [
-    "auto", "fast", "replay", "skill-ab", "tripartite-eval-loop",
+    "auto", "fast", "replay", "skill-ab", "tripartite-eval-loop", "tripartite-consensus",
     "panel-bt-consensus", "paired-stat-diff", "zero-flake-11pass",
     "ablation-lift", "metamorphic-ood", "chaos-fault-matrix",
     "negative-trigger-gate", "p2-customization-funnel",
     "isolated-ab-gate", "marketplace", "full",
 ]
+
+
+def classify_cli_exit_code(exit_code: int) -> str:
+    """Maps Antigravity CLI exit codes (`0`=PASS, `3`=CLI_EXIT_PRINT_TIMEOUT, other=FAIL)."""
+    if exit_code == 0:
+        return "COMPLETED_OK"
+    if exit_code == CLI_EXIT_PRINT_TIMEOUT:
+        return "CLI_EXIT_PRINT_TIMEOUT"
+    return f"CLI_EXIT_ERROR_{exit_code}"
 
 
 def compute_normalized_gain(s_with: float, s_without: float) -> float:

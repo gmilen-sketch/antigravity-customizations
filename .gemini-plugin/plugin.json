@@ -1,8 +1,8 @@
 {
   "name": "antigravity-customizations",
   "displayName": "Antigravity Enterprise Autonomy Suite",
-  "description": "Standalone Customer-Facing Antigravity Customizations Suite: 14-Pillar Autonomy Engine, Bitemporal Knowledge Graph (OKF v0.2), 20 PD-Q Skills, 5 Custom Subagents, 3 Lifecycle Hooks, 3 Sidecars (AuxPane UI, CDC Watcher, Nightly Dreaming), and 7 FastMCP/Node MCP Servers.",
-  "version": "1.4.0",
+  "description": "Standalone Customer-Facing Antigravity Customizations Suite: 14-Pillar Autonomy Engine, Bitemporal Knowledge Graph (OKF v0.2), 20 PD-Q Skills, 5 Custom Subagents, 4 Lifecycle Hooks, 3 Sidecars (AuxPane UI, CDC Watcher, Nightly Dreaming), and 10 FastMCP/Node MCP Servers.",
+  "version": "1.5.0",
   "logo": "assets/logo.svg",
   "keywords": [
     "cloud-architecture",

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""
-Production PreInvocation Hook for Antigravity Web Hub (v3.3 - Turn-1 Pinned KV-Cache Prefix,
-1-Hop Topological Edge Propagation, OKF v0.2 Top-3 Dossier Co-Bundling & YAML-Frontmatter Skill Trigger Resolver).
-Executes automatically BEFORE every model turn (<50ms budget, fail-open).
+"""Production PreInvocation Hook for Antigravity Customizations (v1.5.0 / v3.9.0).
+
+Implements Turn-1 Pinned KV-Cache Prefix, 1-Hop/2-Hop Topological Edge Propagation,
+OKF v0.2 Top-3 Dossier Co-Bundling, KG-N5 Negation Filtering, `/dev/shm` Per-Turn
+Cache, Dual-Mode SWE vs Portfolio Classifier, Option `[1/2]` Reply Carryover, and
+Antigravity 2.29+ `HookSystemMessage` Schema Enforcement.
 """
 
 from collections import defaultdict
@@ -18,26 +20,20 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 sys.dont_write_bytecode = True
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-try:
-    from execution_mode_router import strip_turn0_metadata, classify_execution_mode
-except Exception:
-    def strip_turn0_metadata(raw_text: str) -> str:
-        return raw_text or ""
-
-    def classify_execution_mode(prompt_text: str = "", cwd: str = "", env: Any = None) -> Dict[str, Any]:
-        return {"mode": "enterprise_domain", "is_isolated_swe": False, "cleaned_prompt": prompt_text or ""}
-
-KG_CACHE_PATH = "/dev/shm/kg_warm_cache.json"
+KG_CACHE_PATH = os.environ.get("KG_WARM_CACHE_PATH", "/dev/shm/agw_kg_warm_cache.json")
 KG_FALLBACK_PATHS = [
-    os.path.expanduser(os.environ.get("KG_JSON_PATH", "/mnt/data/knowledge_graph.json")),
-    os.path.expanduser("~/.gemini/antigravity/knowledge_graph.json"),
+    "/dev/shm/kg_warm_cache.json",
+    os.path.expanduser(os.environ.get("KG_JSON_PATH", "~/.gemini/antigravity/knowledge_graph.json")),
+    "/mnt/data/knowledge_graph.json",
+    os.path.join(REPO_ROOT, "resources", "knowledge_graph.seed.json"),
 ]
 
 SKILL_DIRS = [
-    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "skills"),
+    os.path.join(REPO_ROOT, "skills"),
     os.path.expanduser("~/.gemini/antigravity/skills"),
     os.path.expanduser("~/.gemini/config/skills"),
     "/mnt/data/projects/.agents/skills",
@@ -199,7 +195,8 @@ def extract_recent_inputs(transcript_path: str, max_turns: int = 3) -> List[str]
                             content = str(data.get("content") or "")
                             if content:
                                 content = re.sub(r"<CONTEXT_SUMMARY>[\s\S]*?</CONTEXT_SUMMARY>", "", content)
-                                content = strip_turn0_metadata(content)
+                                content = re.sub(r"<ADDITIONAL_METADATA>[\s\S]*?</ADDITIONAL_METADATA>", "", content)
+                                content = re.sub(r"<SYSTEM_MESSAGE>[\s\S]*?</SYSTEM_MESSAGE>", "", content)
                                 content = re.sub(r"</?USER_REQUEST>", "", content).strip()
                                 if content and not content.startswith("Error: The stream was interrupted"):
                                     recent_inputs.append(content)
@@ -291,6 +288,8 @@ def resolve_hybrid_entities(text: str, kg_data: Dict[str, Any], use_alias_map: b
             nt for nt in re.split(r"[_\-\s/]+", nid_body)
             if nt and nt not in STRUCTURAL_NODE_PREFIX_STOPWORDS
         ]
+        if any(nt in negated_terms for nt in nid_tokens):
+            continue
         clean_nid_body = " ".join(nid_tokens)
         label_raw = str(node.get("label", "")).lower()
         label_tokens = [
@@ -305,7 +304,12 @@ def resolve_hybrid_entities(text: str, kg_data: Dict[str, Any], use_alias_map: b
         if use_alias_map:
             aliases = node.get("aliases") or props.get("aliases") or []
             if isinstance(aliases, list):
-                if any(isinstance(a, str) and re.search(r"\b" + re.escape(a.lower()) + r"\b", text_lower) for a in aliases):
+                if any(
+                    isinstance(a, str)
+                    and a.lower() not in negated_terms
+                    and re.search(r"\b" + re.escape(a.lower()) + r"\b", text_lower)
+                    for a in aliases
+                ):
                     score += 40
 
         for t, t_re in tok_pats:
@@ -317,7 +321,7 @@ def resolve_hybrid_entities(text: str, kg_data: Dict[str, Any], use_alias_map: b
                 score += 10
 
         if score >= 25:
-            if nid.startswith(("infra:", "model:", "mcp:", "workload:", "project:", "skill:")):
+            if nid.startswith(("doc:", "infra:", "model:", "mcp:", "workload:", "project:", "skill:")):
                 score += 20
             elif nid.startswith("task:"):
                 score += 10
@@ -330,7 +334,10 @@ def resolve_hybrid_entities(text: str, kg_data: Dict[str, Any], use_alias_map: b
         if sc >= 45:
             for nb_id in adj_neighbors.get(orig_id, set()):
                 if nb_id in node_by_id:
-                    propagated_scores[nb_id] = max(propagated_scores.get(nb_id, 0), max(45, sc - 10))
+                    if nb_id in raw_scores:
+                        propagated_scores[nb_id] = max(propagated_scores[nb_id], raw_scores[nb_id] + 15)
+                    else:
+                        propagated_scores[nb_id] = max(propagated_scores.get(nb_id, 0), 45)
 
     scored_nodes = []
     for orig_id, score in propagated_scores.items():
@@ -376,13 +383,15 @@ def resolve_hybrid_entities(text: str, kg_data: Dict[str, Any], use_alias_map: b
             if len(unique_entities) >= 4:
                 break
 
-    # Tier 2: OKF v0.2 Reference Concepts (Top-3 co-bundling via domain_keywords)
     scored_okf = []
     for node in okf_nodes:
         nid_okf = str(node.get("id", ""))
         props = node.get("properties", {}) if isinstance(node.get("properties"), dict) else {}
         dkws = list(props.get("domain_keywords", [])) + list(props.get("tags", [])) + list(node.get("aliases") or [])
-        kw_hits = sum(1 for kw in dkws if isinstance(kw, str) and kw.lower() in text_lower)
+        kw_hits = sum(
+            1 for kw in dkws
+            if isinstance(kw, str) and kw.lower() not in negated_terms and kw.lower() in text_lower
+        )
         if kw_hits > 0:
             trust = _okf_trust_summary(props)
             tier_bonus = {"human-reviewed": 3, "machine-confirmed": 2}.get(props.get("trust_tier"), 0)
@@ -528,8 +537,11 @@ def resolve_target_skills(text: str) -> List[Tuple[str, str]]:
     if not text:
         return []
     text_lower = text.lower()
+    negated_terms = extract_negated_terms(text_lower)
     matched = []
     for sname in TRIGGERS:
+        if any(nt in sname for nt in negated_terms):
+            continue
         kws = extract_skill_frontmatter_triggers(sname)
         score = 0
         for kw in kws:
@@ -558,7 +570,7 @@ def _format_entity_lines(entities: List[Dict[str, Any]]) -> List[str]:
 
 
 def extract_root_conversation_id(payload: Dict[str, Any]) -> str:
-    """Extracts rootConversationId (2026-10-13 Antigravity 2.24+ / CLI 1.4+ hook contract) with fallback to conversationId or session_id."""
+    """Extracts rootConversationId (Antigravity 2.24+ / CLI 1.4+ hook contract) with fallback to conversationId or session_id."""
     if not isinstance(payload, dict):
         return "live-session"
     for key in ("rootConversationId", "root_conversation_id", "conversationId", "conversation_id", "session_id"):
@@ -569,10 +581,7 @@ def extract_root_conversation_id(payload: Dict[str, Any]) -> str:
 
 
 def deduplicate_turn0_ephemeral_kernel(session_id: str, ephemeral_text: str) -> Tuple[str, bool]:
-    """
-    EPH-ONCE-01: Deduplicates identical Turn-0 ephemeral grounding messages within the same
-    session so retries or rapid re-invocations do not inject duplicate context blocks.
-    """
+    """EPH-ONCE-01: Deduplicates identical Turn-0 ephemeral grounding messages within the same session."""
     if not ephemeral_text:
         return "", False
     safe_sid = re.sub(r"[^a-zA-Z0-9_\-]", "", session_id or "live-session")
@@ -595,91 +604,12 @@ def deduplicate_turn0_ephemeral_kernel(session_id: str, ephemeral_text: str) -> 
 
 
 def sanitize_pre_invocation_hook_result(raw_output: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    RC-8 Strict hooks.proto PreInvocationHookResult Schema Enforcer:
-    Strips non-proto top-level fields (`additionalContext`, `p1_gate`, `matched_skills`, etc.)
-    so strict protobuf JSON parsers accept the PreInvocation output without schema rejection.
-    """
+    """RC-8 Strict hooks.proto PreInvocationHookResult Schema Enforcer."""
     if not isinstance(raw_output, dict):
         return {}
     allowed_keys = {"injectSteps", "decision", "reason"}
     return {k: v for k, v in raw_output.items() if k in allowed_keys}
 
-
-def main() -> None:
-    try:
-        raw = sys.stdin.read()
-        payload = json.loads(raw) if raw.strip() else {}
-    except Exception:
-        payload = {}
-
-    transcript_path = str(payload.get("transcriptPath") or payload.get("transcript_path") or "")
-    root_conversation_id = extract_root_conversation_id(payload)
-    recent_inputs = extract_recent_inputs(transcript_path, max_turns=3)
-    direct_prompt = strip_turn0_metadata(str(payload.get("prompt") or payload.get("user_prompt") or "").strip())
-    if direct_prompt and direct_prompt not in recent_inputs:
-        recent_inputs.append(direct_prompt)
-    context_text = " \n ".join(recent_inputs) if recent_inputs else ""
-
-    mode_info = classify_execution_mode(context_text, cwd=str(payload.get("cwd") or os.getcwd()))
-    if mode_info.get("is_isolated_swe"):
-        print(json.dumps({}))
-        return
-
-    kg_data = load_kg()
-    pinned_entities, delta_entities = resolve_hybrid_entities_pinned_and_delta(
-        transcript_path, recent_inputs, kg_data
-    )
-    matched_entities = pinned_entities + delta_entities
-    matched_skills = resolve_target_skills(context_text)
-
-    msg_lines: List[str] = []
-    if matched_entities:
-        msg_lines.append("🧠 [KNOWLEDGE GRAPH AUTOMATIC PRE-INVOCATION GROUNDING (SSOT)]")
-        msg_lines.append(
-            "- Single Source of Truth (SSOT): The Knowledge Graph is the Single Source of Truth. "
-            "Knowledge Graph properties strictly override local workspace guesses and base LLM assumptions."
-        )
-        msg_lines.append(
-            "- Internal Context Binding: Ingested PreInvocation context is active. "
-            "Bind canonical entities internally during execution with zero preamble entity dumps."
-        )
-        msg_lines.append("<session_pinned_entities>")
-        msg_lines.extend(_format_entity_lines(pinned_entities))
-        msg_lines.append("</session_pinned_entities>")
-        if delta_entities:
-            msg_lines.append("<turn_delta_entities>")
-            msg_lines.extend(_format_entity_lines(delta_entities))
-            msg_lines.append("</turn_delta_entities>")
-        msg_lines.append("")
-
-    if matched_skills:
-        msg_lines.append("🎯 [MANDATORY SKILL ACTIVATION]")
-        for sname, spath in matched_skills:
-            msg_lines.append(f"- Skill: `{sname}` -> file://{spath}")
-            msg_lines.append(
-                f"  * Invariant: View SKILL.md via view_file before executing scripts or CLI tools belonging to `{sname}`."
-            )
-        msg_lines.append("")
-
-    if msg_lines:
-        scrubbed_msg = scrub("\n".join(msg_lines))
-        deduped_msg, _ = deduplicate_turn0_ephemeral_kernel(root_conversation_id, scrubbed_msg)
-        output = sanitize_pre_invocation_hook_result(
-            {"injectSteps": [{"ephemeralMessage": deduped_msg}]} if deduped_msg else {}
-        )
-    else:
-        output = {}
-
-    print(json.dumps(output))
-
-
-
-
-# ==============================================================================
-# v3.5 Clean-Room Upgrades: 0.05 Confidence Quantizer, Morphological Stemmer,
-# 2-Hop Neighborhood Propagation, DSO Subagent Guard & Canary Stripper
-# ==============================================================================
 
 def quantize_confidence_005(score: float) -> float:
     """Quantizes floating-point confidence scores to 0.05 buckets to preserve LLM KV-cache prefix hits."""
@@ -748,9 +678,48 @@ UNIVERSAL_SWE_KERNEL = (
 )
 
 _BENCHMARK_PATH_RE = re.compile(
-    r"(?:/workspace/|/testbed/|/swebench/|/harbor/|/tbench/|/eval_sandbox/|SWE-bench|Terminal-Bench)",
+    r"(?:/workspace(?:/|$)|/testbed(?:/|$)|/swebench/|/harbor/|/tbench/|/eval_sandbox/|SWE-bench|Terminal-Bench)",
     re.IGNORECASE,
 )
+_SHM_INTERNAL_PREFIXES = (
+    "agw_",
+    "kg_",
+    "c9_",
+    "gf_",
+    "bh_",
+    "sbx_",
+    "isolated_sandbox",
+    "dreaming_",
+    ".gemini",
+    "mfs",
+)
+_XDG_PATH_RE = re.compile(
+    r"(?:~|\$HOME|/[A-Za-z0-9_.\-/]+)?/\.(?:config|cache|local)/[A-Za-z0-9_.\-/]*",
+    re.IGNORECASE,
+)
+
+
+def strip_xdg_non_portfolio_paths(text: str) -> str:
+    """Strips XDG user dot-directories (~/.config, ~/.cache, ~/.local) before portfolio skill trigger matching."""
+    if not text:
+        return ""
+    return _XDG_PATH_RE.sub(" ", text)
+
+
+def _is_shm_swe_workspace(cwd: str) -> bool:
+    """Returns True for isolated `/dev/shm/<task_dir>` SWE workspaces while excluding internal scratch/cache files."""
+    if not cwd:
+        return False
+    norm = os.path.normpath(cwd.strip())
+    if not norm.startswith("/dev/shm/"):
+        return False
+    rel = norm[len("/dev/shm/") :]
+    top = rel.split("/", 1)[0]
+    if not top or any(top.startswith(pfx) for pfx in _SHM_INTERNAL_PREFIXES):
+        return False
+    if top.endswith((".json", ".jsonl", ".md", ".log", ".tmp", ".lock")):
+        return False
+    return True
 
 
 def classify_execution_mode(
@@ -758,32 +727,160 @@ def classify_execution_mode(
     cwd: str = "",
     env: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
-    """AGW-W12-01: Classifies session into SWE_BENCHMARK_MODE or PORTFOLIO_MODE."""
+    """AGW-W12-01 + v3.9 `/dev/shm/<dir>` SWE Router: Classifies session into SWE_BENCHMARK_MODE or PORTFOLIO_MODE."""
     env_map = env if env is not None else os.environ
     explicit_mode = str(env_map.get("AGW_EXECUTION_MODE", "")).strip().upper()
+    if explicit_mode == "PORTFOLIO_MODE":
+        return {
+            "mode": "PORTFOLIO_MODE",
+            "is_isolated_swe": False,
+            "suppress_domain_prose_rules": False,
+            "kernel_banner": "",
+            "min_stop_seconds": 9,
+        }
     if explicit_mode == "SWE_BENCHMARK_MODE" or env_map.get("AGW_BENCHMARK_MODE") == "1":
         return {
             "mode": "SWE_BENCHMARK_MODE",
             "is_isolated_swe": True,
             "suppress_domain_prose_rules": True,
             "kernel_banner": UNIVERSAL_SWE_KERNEL,
-            "cleaned_prompt": strip_turn0_metadata(prompt_text or ""),
+            "min_stop_seconds": 3,
         }
-    if _BENCHMARK_PATH_RE.search(cwd or "") or _BENCHMARK_PATH_RE.search(prompt_text or ""):
+    clean_prompt = strip_xdg_non_portfolio_paths(prompt_text or "")
+    if _is_shm_swe_workspace(cwd) or _BENCHMARK_PATH_RE.search(cwd or "") or _BENCHMARK_PATH_RE.search(clean_prompt):
         return {
             "mode": "SWE_BENCHMARK_MODE",
             "is_isolated_swe": True,
             "suppress_domain_prose_rules": True,
             "kernel_banner": UNIVERSAL_SWE_KERNEL,
-            "cleaned_prompt": strip_turn0_metadata(prompt_text or ""),
+            "min_stop_seconds": 3,
         }
     return {
         "mode": "PORTFOLIO_MODE",
         "is_isolated_swe": False,
         "suppress_domain_prose_rules": False,
         "kernel_banner": "",
-        "cleaned_prompt": strip_turn0_metadata(prompt_text or ""),
+        "min_stop_seconds": 9,
     }
+
+
+def extract_recent_planner_outputs(transcript_path: str, max_outputs: int = 2) -> List[str]:
+    """Extracts recent PLANNER_RESPONSE text blocks for numeric `[1/2]` option reply carryover."""
+    if not transcript_path or not os.path.exists(transcript_path):
+        return []
+    out: List[str] = []
+    try:
+        with open(transcript_path, "r", encoding="utf-8", errors="ignore") as fh:
+            for line in fh:
+                if '"PLANNER_RESPONSE"' not in line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    if obj.get("type") == "PLANNER_RESPONSE" and obj.get("content"):
+                        out.append(str(obj["content"]))
+                except Exception:
+                    continue
+    except Exception:
+        return []
+    return out[-max_outputs:]
+
+
+def resolve_option_choice_carryover(latest_input: str, prior_planner_outputs: List[Any]) -> str:
+    """Binds bare numeric replies ('1', 'option 1', '2', 'option 2') back to the offered Option text."""
+    raw = (latest_input or "").strip()
+    m = re.match(r"^(?:option\s*)?([12])(?:\b|[.,!:\-\s].*)?$", raw, re.IGNORECASE)
+    if not m or len(raw.split()) > 12:
+        return latest_input
+    choice_num = m.group(1)
+    opt_re = re.compile(
+        rf"(?:\*\*)?Option\s+{choice_num}\b[^:\n]*:\s*([^\n]+)",
+        re.IGNORECASE,
+    )
+    for item in reversed(prior_planner_outputs or []):
+        txt = str(item.get("content") or "") if isinstance(item, dict) else str(item or "")
+        hit = opt_re.search(txt)
+        if hit:
+            desc = re.sub(r"\*+", "", hit.group(1)).strip()
+            return f"{raw} -> Selected Option {choice_num}: {desc}"
+    return latest_input
+
+
+def _turn_cache_path(root_cid: str) -> str:
+    safe_cid = re.sub(r"[^A-Za-z0-9_.-]", "_", root_cid or "live")[:64]
+    base_dir = os.environ.get("AGW_TURN_CACHE_DIR", "/dev/shm")
+    return os.path.join(base_dir, f"agw_turn_cache_{safe_cid}.json")
+
+
+def _compute_turn_cache_key(user_turn_count: int, context_text: str) -> str:
+    kg_stamp = "0:0"
+    for p in [KG_CACHE_PATH] + list(KG_FALLBACK_PATHS):
+        if os.path.exists(p):
+            try:
+                st = os.stat(p)
+                kg_stamp = f"{st.st_mtime_ns}:{st.st_size}"
+            except OSError:
+                pass
+            break
+    return hashlib.sha256(f"{user_turn_count}|{kg_stamp}|{context_text}".encode("utf-8")).hexdigest()[:20]
+
+
+def _load_per_turn_kg_cache(
+    root_cid: str, user_turn_count: int, context_text: str = ""
+) -> Optional[Dict[str, Any]]:
+    if not root_cid or root_cid == "live-session" or os.environ.get("AGW_DISABLE_TURN_CACHE") == "1":
+        return None
+    cp = _turn_cache_path(root_cid)
+    if not os.path.isfile(cp):
+        return None
+    try:
+        with open(cp, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        if isinstance(data, dict) and data.get("key") == _compute_turn_cache_key(user_turn_count, context_text):
+            out = data.get("output")
+            if isinstance(out, dict):
+                return out
+    except Exception:
+        pass
+    return None
+
+
+def _save_per_turn_kg_cache(
+    root_cid: str, user_turn_count: int, context_text: str, output: Dict[str, Any]
+) -> None:
+    if not root_cid or root_cid == "live-session" or os.environ.get("AGW_DISABLE_TURN_CACHE") == "1":
+        return
+    cp = _turn_cache_path(root_cid)
+    parent = os.path.dirname(cp)
+    if not os.path.isdir(parent) or not os.access(parent, os.W_OK):
+        return
+    tmp = f"{cp}.{os.getpid()}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(
+                {"key": _compute_turn_cache_key(user_turn_count, context_text), "output": output},
+                fh,
+            )
+        os.replace(tmp, cp)
+    except Exception:
+        if os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+
+def read_turn_hook_cache(
+    root_cid: str, user_turn_count: int, context_text: str = ""
+) -> Optional[Dict[str, Any]]:
+    """Public helper returning cached PreInvocation hook output for `(root_cid, user_turn_count)`."""
+    return _load_per_turn_kg_cache(root_cid, user_turn_count, context_text)
+
+
+def write_turn_hook_cache(
+    root_cid: str, user_turn_count: int, output: Dict[str, Any], context_text: str = ""
+) -> None:
+    """Public helper persisting PreInvocation hook output for `(root_cid, user_turn_count)`."""
+    _save_per_turn_kg_cache(root_cid, user_turn_count, context_text, output)
 
 
 def should_inject_turn0_kernel(
@@ -798,7 +895,7 @@ def should_inject_turn0_kernel(
 
 
 def enforce_strict_pre_invocation_schema(raw_output: Dict[str, Any]) -> Dict[str, Any]:
-    """AGW-W12-03: Enforces strict PreInvocation JSON contract (only injectSteps.ephemeralMessage)."""
+    """AGW-W12-03 + S-05: Enforces Antigravity 2.29+ PreInvocation HookSystemMessage schema."""
     if not isinstance(raw_output, dict):
         return {}
     steps = raw_output.get("injectSteps")
@@ -806,10 +903,24 @@ def enforce_strict_pre_invocation_schema(raw_output: Dict[str, Any]) -> Dict[str
         return {}
     clean_steps = []
     for step in steps:
-        if isinstance(step, dict):
-            msg = step.get("ephemeralMessage")
-            if isinstance(msg, str) and msg.strip():
-                clean_steps.append({"ephemeralMessage": msg})
+        if not isinstance(step, dict):
+            continue
+        sm = step.get("systemMessage")
+        if isinstance(sm, dict):
+            msg = sm.get("systemMessage")
+            meta = sm.get("metadata") if isinstance(sm.get("metadata"), dict) else None
+            if (isinstance(msg, str) and msg.strip()) or meta:
+                entry: Dict[str, Any] = {"systemMessage": str(msg or "")}
+                if meta:
+                    entry["metadata"] = meta
+                clean_steps.append({"systemMessage": entry})
+                continue
+        elif isinstance(sm, str) and sm.strip():
+            clean_steps.append({"systemMessage": {"systemMessage": sm}})
+            continue
+        legacy_msg = step.get("ephemeralMessage")
+        if isinstance(legacy_msg, str) and legacy_msg.strip():
+            clean_steps.append({"systemMessage": {"systemMessage": legacy_msg}})
     return {"injectSteps": clean_steps} if clean_steps else {}
 
 
@@ -891,7 +1002,7 @@ def run_pre_invocation_grounding(
     root_conversation_id: str = "",
     cwd: str = "",
 ) -> Dict[str, Any]:
-    """Executes live PreInvocation KG + OKF v0.2 + 20-Skill grounding for an active Antigravity Web session."""
+    """Executes live PreInvocation KG + OKF v0.2 + 20-Skill grounding."""
     clean_prompt = strip_canary_headers(prompt_text or "")
     mode_info = classify_execution_mode(clean_prompt, cwd=cwd)
     kg_data = load_kg()
@@ -921,16 +1032,140 @@ def run_pre_invocation_grounding(
         msg_lines.append("🎯 [MANDATORY SKILL ACTIVATION]")
         for sname, spath in matched_skills:
             msg_lines.append(f"- Skill: `{sname}` -> file://{spath}")
+            msg_lines.append(
+                f"  * Invariant: Read SKILL.md via read_file before executing scripts or CLI tools belonging to `{sname}`."
+            )
 
+    rendered = scrub("\n".join(msg_lines)) if msg_lines else ""
     return {
         "session_id": session_id,
         "root_conversation_id": root_conversation_id or session_id,
         "execution_mode": mode_info["mode"],
+        "min_stop_seconds": mode_info.get("min_stop_seconds", 9),
         "pinned_entities": pinned_entities,
         "hop2_neighborhood": hop2_map,
         "matched_skills": [{"name": n, "path": scrub(p)} for n, p in matched_skills],
-        "ephemeral_message": scrub("\n".join(msg_lines)) if msg_lines else "",
+        "system_message": rendered,
+        "ephemeral_message": rendered,
+        "injectSteps": [{"systemMessage": {"systemMessage": rendered}}] if rendered else [],
     }
+
+
+def main() -> None:
+    try:
+        raw = sys.stdin.read()
+        payload = json.loads(raw) if raw.strip() else {}
+    except Exception:
+        payload = {}
+
+    transcript_path = str(payload.get("transcriptPath") or payload.get("transcript_path") or "")
+    root_conversation_id = extract_root_conversation_id(payload)
+    conv_id = str(payload.get("conversationId") or payload.get("conversation_id") or root_conversation_id).strip()
+    artifact_dir = str(payload.get("artifactDirectoryPath") or payload.get("artifact_directory_path") or "")
+    cwd = str(payload.get("cwd") or payload.get("workingDirectory") or os.getcwd() or "")
+
+    if artifact_dir and (not conv_id or conv_id == root_conversation_id):
+        try:
+            from black_hat_in_progress_ux_hook import (
+                find_active_verification_subagent,
+                restore_deliverable_artifact_cards,
+            )
+
+            if not find_active_verification_subagent(transcript_path):
+                restore_deliverable_artifact_cards(artifact_dir)
+        except Exception:
+            pass
+
+    recent_inputs = extract_recent_inputs(transcript_path, max_turns=3)
+    direct_prompt = str(payload.get("prompt") or payload.get("user_prompt") or "").strip()
+    if direct_prompt:
+        direct_prompt = re.sub(r"<ADDITIONAL_METADATA>[\s\S]*?</ADDITIONAL_METADATA>", "", direct_prompt)
+        direct_prompt = re.sub(r"<SYSTEM_MESSAGE>[\s\S]*?</SYSTEM_MESSAGE>", "", direct_prompt).strip()
+    if direct_prompt and direct_prompt not in recent_inputs:
+        recent_inputs.append(direct_prompt)
+
+    if recent_inputs:
+        resolved_choice = resolve_option_choice_carryover(
+            recent_inputs[-1], extract_recent_planner_outputs(transcript_path, max_outputs=2)
+        )
+        if resolved_choice != recent_inputs[-1]:
+            recent_inputs[-1] = resolved_choice
+
+    context_text = strip_xdg_non_portfolio_paths(" \n ".join(recent_inputs) if recent_inputs else "")
+    mode_info = classify_execution_mode(context_text, cwd=cwd)
+
+    cached_turn = _load_per_turn_kg_cache(root_conversation_id, len(recent_inputs), context_text)
+    if cached_turn is not None:
+        print(json.dumps(cached_turn))
+        return
+
+    msg_lines: List[str] = []
+    if mode_info["mode"] == "SWE_BENCHMARK_MODE":
+        if should_inject_turn0_kernel(max(1, len(recent_inputs))):
+            msg_lines.append(mode_info["kernel_banner"])
+        output = (
+            enforce_strict_pre_invocation_schema(
+                {"injectSteps": [{"systemMessage": {"systemMessage": scrub("\n".join(msg_lines))}}]}
+            )
+            if msg_lines
+            else {}
+        )
+        _save_per_turn_kg_cache(root_conversation_id, len(recent_inputs), context_text, output)
+        print(json.dumps(output))
+        return
+
+    kg_data = load_kg()
+    pinned_entities, delta_entities = resolve_hybrid_entities_pinned_and_delta(
+        transcript_path, recent_inputs, kg_data
+    )
+    matched_entities = pinned_entities + delta_entities
+    matched_skills = resolve_target_skills(context_text)
+
+    if matched_entities and should_inject_turn0_kernel(
+        max(1, len(recent_inputs)), bool(delta_entities), bool(matched_skills)
+    ):
+        msg_lines.append("🧠 [KNOWLEDGE GRAPH AUTOMATIC PRE-INVOCATION GROUNDING (SSOT)]")
+        msg_lines.append(
+            "- Single Source of Truth (SSOT): The Knowledge Graph is the Single Source of Truth. "
+            "Knowledge Graph properties strictly override local workspace guesses and base LLM assumptions."
+        )
+        msg_lines.append(
+            "- Internal Context Binding: Ingested PreInvocation context is active. "
+            "Bind canonical entities internally during execution with zero preamble entity dumps."
+        )
+        msg_lines.append("<session_pinned_entities>")
+        msg_lines.extend(_format_entity_lines(pinned_entities))
+        msg_lines.append("</session_pinned_entities>")
+        if delta_entities:
+            msg_lines.append("<turn_delta_entities>")
+            msg_lines.extend(_format_entity_lines(delta_entities))
+            msg_lines.append("</turn_delta_entities>")
+        msg_lines.append("")
+
+    if matched_skills:
+        msg_lines.append("🎯 [MANDATORY SKILL ACTIVATION]")
+        for sname, spath in matched_skills:
+            msg_lines.append(f"- Skill: `{sname}` -> file://{spath}")
+            msg_lines.append(
+                f"  * Invariant: Read SKILL.md via read_file before executing scripts or CLI tools belonging to `{sname}`."
+            )
+        msg_lines.append("")
+
+    if msg_lines:
+        scrubbed_msg = scrub("\n".join(msg_lines))
+        deduped_msg, _ = deduplicate_turn0_ephemeral_kernel(root_conversation_id, scrubbed_msg)
+        output = (
+            enforce_strict_pre_invocation_schema(
+                {"injectSteps": [{"systemMessage": {"systemMessage": deduped_msg}}]}
+            )
+            if deduped_msg
+            else {}
+        )
+    else:
+        output = {}
+
+    _save_per_turn_kg_cache(root_conversation_id, len(recent_inputs), context_text, output)
+    print(json.dumps(output))
 
 
 if __name__ == "__main__":

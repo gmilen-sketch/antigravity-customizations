@@ -1,4 +1,4 @@
-# Copy-Paste Agent Deployment Prompts (`v1.4.0`)
+# Copy-Paste Agent Deployment Prompts (`v1.5.0`)
 
 Copy and paste any of the prompts below directly into **Antigravity 2.0 IDE**, **Antigravity Web Hub**, **Antigravity CLI (`agy`)**, **Claude Code (`claude`)**, **Cursor**, **Windsurf**, or **Google Cloud Code**. Your agent will autonomously back up any pre-existing user customizations, clone and install all 7 customization primitives, run the full clean-room verification suite, review how your backed-up customizations can be integrated alongside the deployed suite, and output a 3-column readiness scorecard.
 
@@ -6,10 +6,10 @@ Copy and paste any of the prompts below directly into **Antigravity 2.0 IDE**, *
 
 ## 🚀 Prompt 1: Full Zero-Touch Deployment, Pre-Existing Backup & Integration Review (Recommended)
 
-Paste this prompt into a fresh or existing agent session to deploy the complete **Antigravity Customizations Suite (`v1.4.0`)** while safely backing up and reviewing any prior customizations:
+Paste this prompt into a fresh or existing agent session to deploy the complete **Antigravity Customizations Suite (`v1.5.0`)** while safely backing up and reviewing any prior customizations:
 
 ```text
-Deploy and verify the Antigravity Customizations Suite (v1.4.0) in this environment,
+Deploy and verify the Antigravity Customizations Suite (v1.5.0) in this environment,
 safely backing up and reviewing any pre-existing user customizations, by executing
 these exact steps without interactive prompts:
 
@@ -34,7 +34,7 @@ these exact steps without interactive prompts:
 3. Install the Unified Plugin, 4 Modular Domain Packs (agy-core-governance,
    agy-knowledge-graph, agy-cloud-architect, agy-workspace-automation), Role Bundle,
    Bitemporal Knowledge Graph, 20 PD-Q Skills, 5 Subagents, 3 Arm B Rules,
-   3 ParseHooks Lifecycle Hooks, 7 Eager MCP Servers, and 3 Zero-Permission Sidecars,
+   4 ParseHooks Lifecycle Hooks, 10 Eager MCP Servers, and 3 Zero-Permission Sidecars,
    and run the built-in 7-primitive + unit-test verifier:
    cd "$HOME/antigravity-customizations" && ./scripts/install.sh --target all --verify
 
@@ -55,7 +55,7 @@ these exact steps without interactive prompts:
      python3 -B "$HOME/antigravity-customizations/src/hooks/lazy_plugin_bootstrap.py" \
        --merge-legacy --home "$HOME"
      to non-destructively integrate custom rules (`legacy-user-customizations.md`),
-     custom hooks, and custom MCP servers alongside the v1.4.0 suite.
+     custom hooks, and custom MCP servers alongside the v1.5.0 suite.
 
 7. Report a 3-column Markdown table (`Target | Behavior & Outcome | Status`)
    confirming all 7 customization primitives, pre-existing customization backup
@@ -66,7 +66,7 @@ these exact steps without interactive prompts:
 
 ## 🔄 Prompt 2: One-Step Integration of Backed-Up User Customizations (`--merge-legacy`)
 
-If **Prompt 1** detected pre-existing customizations in `LEGACY_CUSTOMIZATIONS_REVIEW.md` (`discovered_count > 0`), paste this prompt to automatically merge them alongside the deployed `v1.4.0` suite without overwriting any of the 7 core primitives:
+If **Prompt 1** detected pre-existing customizations in `LEGACY_CUSTOMIZATIONS_REVIEW.md` (`discovered_count > 0`), paste this prompt to automatically merge them alongside the deployed `v1.5.0` suite without overwriting any of the 7 core primitives:
 
 ```text
 Run:
@@ -118,11 +118,11 @@ When **Prompt 1** completes, your agent will output a verification summary match
 | Target | Behavior & Outcome | Status |
 | :--- | :--- | :--- |
 | **Legacy Backup & Review** | Prior rules, skills, subagents, hooks, and MCPs backed up & reviewed in `LEGACY_CUSTOMIZATIONS_REVIEW.md` | ✅ |
-| [**plugin.json**](plugin.json) & [**plugins/**](plugins/) | Root `v1.4.0` plugin, `enterprise_architect` bundle, and 4 modular domain packs installed | ✅ |
-| [**knowledge_graph.seed.json**](resources/knowledge_graph.seed.json) | Bitemporal Knowledge Graph (`OKF v0.2`) seeded (`17` nodes, `31` edges, `< 1 ms` warm cache) | ✅ |
+| [**plugin.json**](plugin.json) & [**plugins/**](plugins/) | Root `v1.5.0` plugin, `enterprise_architect` bundle, and 4 modular domain packs installed | ✅ |
+| [**knowledge_graph.seed.json**](resources/knowledge_graph.seed.json) | Empty Bitemporal Knowledge Graph (`OKF v0.2`) skeleton initialized (`0` pre-loaded nodes, `0` edges, `< 1 ms` warm cache) | ✅ |
 | [**skills.json**](skills.json) (`20` Skills) | `7` Tier-1 always-on skills (`-58%` token drop) + `13` Tier-2 dynamic skills active | ✅ |
 | [**agents.json**](agents.json) (`5` Subagents) | Goldfish, Judge, Critic, Dreaming Reasoner, and Workspace Housekeeper subagents ready | ✅ |
 | [**rules.json**](rules.json) (`3` Arm B Rules) | [GEMINI.md](rules/GEMINI.md), [AGENTS.md](rules/AGENTS.md), and [no-bullshit.md](rules/no-bullshit.md) (`< 7 KB` total budget) active | ✅ |
 | [**hooks.json**](hooks.json) (`ParseHooks`) | `sentinel-policy-guard`, `knowledge-graph-grounding`, and `black-hat-completion-gate` active | ✅ |
-| [**mcp_config.json**](mcp_config.json) & [**sidecars.json**](sidecars.json) | `7` Eager MCP servers (`alwaysLoad: true`) + `3` zero-permission sidecars ready | ✅ |
-| [**test_customizations_suite.py**](tests/test_customizations_suite.py) | All `27/27` clean-room, Wave-12, Dreaming, and deployment verification tests pass | ✅ |
+| [**mcp_config.json**](mcp_config.json) & [**sidecars.json**](sidecars.json) | `10` Eager MCP servers (`alwaysLoad: true`) + `3` zero-permission sidecars ready | ✅ |
+| [**test_customizations_suite.py**](tests/test_customizations_suite.py) | All `33/33` clean-room, Wave-12, Dreaming, and deployment verification tests pass | ✅ |

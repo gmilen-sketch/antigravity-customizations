@@ -16,6 +16,8 @@ import argparse
 from collections import defaultdict
 from typing import Dict, List, Any
 
+sys.dont_write_bytecode = True
+
 ACTR_CLAMP_FLOOR = -2.0
 ACTR_DECAY_PARAM = 0.5
 STEER_EVICTION_CONFIDENCE_FLOOR = 0.15
@@ -27,10 +29,17 @@ DEFAULT_GRAPH_PATHS = [
 
 
 def find_active_graph_path() -> str:
-    for path in DEFAULT_GRAPH_PATHS:
+    env_override = os.environ.get("KG_JSON_PATH", "").strip()
+    if env_override:
+        return os.path.expanduser(env_override)
+    home_graph = os.path.expanduser("~/.gemini/antigravity/knowledge_graph.json")
+    mnt_graph = "/mnt/data/knowledge_graph.json"
+    for path in (mnt_graph, home_graph):
         if os.path.exists(path):
             return path
-    return DEFAULT_GRAPH_PATHS[0]
+    if os.path.isdir("/mnt/data") and os.access("/mnt/data", os.W_OK):
+        return mnt_graph
+    return home_graph
 
 
 def compute_adamic_adar_scores(graph_data: Dict[str, Any], score_threshold: float = 0.60) -> List[Dict[str, Any]]:
@@ -96,7 +105,12 @@ def apply_temporal_decay(
             continue
 
         props = n.setdefault("properties", {})
-        c_0 = float(props.get("confidence", props.get("confidence_score", 1.0)))
+        c_0 = float(
+            props.setdefault(
+                "base_confidence",
+                props.get("confidence", props.get("confidence_score", 1.0)),
+            )
+        )
         updated_iso = n.get("updated_at") or props.get("updated_at")
 
         if updated_iso:

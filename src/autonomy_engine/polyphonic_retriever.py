@@ -220,7 +220,13 @@ class PolyphonicRetriever:
         kg_entities: Optional[List[Dict[str, Any]]] = None,
         top_k: int = 5,
     ) -> List[Dict[str, Any]]:
+        rewritten_q = rewrite_conversational_query(query)
         deduped = self.deduplicate_boilerplate(corpus)
-        bm25_ranked = self.score_bm25f_6field(query, deduped)
-        reranked = self.rerank_with_graph_rag(query, bm25_ranked, kg_entities=kg_entities)
-        return reranked[:top_k]
+        bm25_ranked = self.score_bm25f_6field(rewritten_q, deduped)
+        reranked = self.rerank_with_graph_rag(rewritten_q, bm25_ranked, kg_entities=kg_entities)
+        top_items = []
+        for item in reranked[:top_k]:
+            enriched = dict(item)
+            enriched.setdefault("identity_header", build_identity_header(enriched))
+            top_items.append(enriched)
+        return top_items

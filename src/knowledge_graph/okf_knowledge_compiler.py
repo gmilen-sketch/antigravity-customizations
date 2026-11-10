@@ -18,6 +18,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
+sys.dont_write_bytecode = True
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 SRC_DIR = os.path.dirname(SCRIPT_DIR)
@@ -145,12 +147,13 @@ def sync_kb_to_graph(kb_root: str = DEFAULT_KB_ROOT, graph_path: str = None, cac
     with open(active_graph, "w", encoding="utf-8") as f:
         json.dump(gdata, f, indent=2)
 
-    cache_res = hydrate_serving_cache(active_graph, cache_path=cache_path)
+    cache_res = hydrate_serving_cache(active_graph, cache_path=cache_path) if cache_path else hydrate_serving_cache(active_graph)
     return {
         "status": "ok",
         "kb_root": str(kb_path),
         "synced_dossiers": synced,
         "total_graph_nodes": len(gdata["nodes"]),
+        "total_graph_edges": len(gdata.get("edges", [])),
         "serving_cache": cache_res,
     }
 
@@ -159,6 +162,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="OKF v0.2 Knowledge Compiler")
     parser.add_argument("--kb-root", type=str, default=DEFAULT_KB_ROOT, help="Path to kb/ bundle")
     parser.add_argument("--graph-path", type=str, default=None, help="Path to knowledge_graph.json")
+    parser.add_argument("--cache-path", type=str, default=None, help="Optional warm cache output path")
     args = parser.parse_args()
-    res = sync_kb_to_graph(kb_root=args.kb_root, graph_path=args.graph_path)
+    res = sync_kb_to_graph(kb_root=args.kb_root, graph_path=args.graph_path, cache_path=args.cache_path)
     print(json.dumps(res, indent=2))

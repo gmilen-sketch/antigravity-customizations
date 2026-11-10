@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0] - 2026-11-10
+
+### Added
+- **Synchronized Antigravity Web Hub `v3.9.0` Clean-Room Customizations**: Added `PostInvocation` zero-token `[!WARNING]` UI verification banner & `<artifact>.metadata.json` `userFacing` holdback/restore (`src/hooks/black_hat_in_progress_ux_hook.py`), 3 new eager FastMCP servers (`src/mcp_servers/browser_cdp_mcp.py`, `src/mcp_servers/cloud_telemetry_mcp.py`, `src/mcp_servers/workspace_docs_mcp.py` — 10 total MCP servers), 3 new subagent `hooks.json` guards (5/5 subagents covered), empty Bitemporal Knowledge Graph & `OKF v0.2` schema skeleton (`0` pre-loaded nodes, entities, edges, or dossiers across `resources/knowledge_graph.seed.json`, `src/knowledge_graph/init_knowledge_graph.py`, and `kb/`), and the turnkey 28-task Paired Harness A/B Benchmark Orchestrator (`scripts/run_ab_benchmark.py`).
+- **`v4.18` Adaptive Multi-Goldfish -> Holistic Judge & `GOLDFISH-RO-1` Hardening**: Upgraded `agent_stop_black_hat_gate.py` (`K=1..3` `[SHARD:<id>]` `resolve_active_goldfish_wave`, `C6-Multi`/`C6-Holistic` union & seam checks, `C3b` transcript mutation detector, zero-`.pyc` `compile()`), `sentinel_dispatch.py` (`GOLDFISH-RO-1` `enforce_goldfish_readonly_command`, `BUG-14` heredoc/literal stripper, `L3` identical-command anti-spin, plain-English subagent `Role` rewriter), `destructive_commands.py` & `r31_hook_integrity_guard.py` (`"force_ask"` human confirmation in Turbo mode), `kg_pre_invocation_hook.py` (Antigravity 2.29+ `HookSystemMessage`, `/dev/shm` turn-hook cache, Dual-Mode `SWE_BENCHMARK_MODE` router), and 8-Model GA catalog led by `Gemini 4 Argon` (`gemini-4-argon`) and `Claude 5.5` (`claude-opus-5-5`, `claude-sonnet-5-5`).
+- **95-Digest Clean-Room Google IP & Binary Audit**: Expanded `src/hooks/black_hat_analyzer.py` to 95 SHA-256 corporate/proprietary identifier digests, corporate domain/host/depot/mount/shortlink regexes, strict UTF-8 & prohibited binary extension checks, and zero skip-list loopholes, verified by `tests/test_v150_v390_sync_and_ip_audit.py`.
+
 ## [1.4.0] - 2026-10-21
 
 ### Added

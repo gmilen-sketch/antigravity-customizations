@@ -1,4 +1,4 @@
-# Antigravity Customizations Suite — Two-Tier Skill & Subagent Routing Directory (`v1.4.0`)
+# Antigravity Customizations Suite — Two-Tier Skill & Subagent Routing Directory (`v1.5.0`)
 
 ## 1. Two-Tier Skill Activation Architecture (`R2` `-58%` Context Footprint)
 To minimize baseline prompt token consumption while keeping all `20` `PD-Q` enterprise skills immediately accessible:
@@ -8,7 +8,7 @@ To minimize baseline prompt token consumption while keeping all `20` `PD-Q` ente
 ### Tier 1 — Core Always-Active Skills (7)
 | # | Skill | Primary Use Cases |
 | :--- | :--- | :--- |
-| 1 | [**black-hat-analysis**](skills/black-hat-analysis/SKILL.md) | 2-Stage Stateless Goldfish -> Isolated Judge forensic completion verification |
+| 1 | [**black-hat-analysis**](skills/black-hat-analysis/SKILL.md) | `v4.18` Adaptive Multi-Goldfish -> Holistic Judge forensic completion verification |
 | 2 | [**diagram-renderer**](skills/diagram-renderer/SKILL.md) | High-resolution Mermaid (`.mmd`), Cloud Draw (`.clouddraw`), and BENTO card compilation |
 | 3 | [**finops-focus-auditor**](skills/finops-focus-auditor/SKILL.md) | FOCUS v1.3 cloud billing, CUD utilization, and Net Effective Savings Rate audits |
 | 4 | [**open-deep-researcher**](skills/open-deep-researcher/SKILL.md) | Multi-source technical research with Six Thinking Hats pre-screening |
@@ -38,8 +38,8 @@ To minimize baseline prompt token consumption while keeping all `20` `PD-Q` ente
 ## 2. Custom Subagents (`agents/`)
 | Subagent | Subagent Hooks | Role |
 | :--- | :--- | :--- |
-| [**black-hat-goldfish**](agents/black-hat-goldfish/agent.md) | [hooks.json](agents/black-hat-goldfish/hooks.json) | Stage 1 Stateless Forensic Investigator (`DISCREPANCY_COUNT`) |
-| [**black-hat-judge**](agents/black-hat-judge/agent.md) | [hooks.json](agents/black-hat-judge/hooks.json) | Stage 2 Isolated Forensic Adjudicator (`CRITIC_VERDICT`) |
-| [**black-hat-critic**](agents/black-hat-critic/agent.md) | Inherited | Single-stage adversarial deliverable verifier |
-| [**dreaming-improvement-reasoner**](agents/dreaming-improvement-reasoner/agent.md) | Inherited | Nightly Dreaming Pareto error-cluster causal synthesizer |
-| [**workspace-housekeeper**](agents/workspace-housekeeper/agent.md) | Inherited | Post-dreaming workspace hygiene and mirror synchronization |
+| [**black-hat-goldfish**](agents/black-hat-goldfish/agent.md) | [hooks.json](agents/black-hat-goldfish/hooks.json) | Stage 1 Stateless Read-Only Forensic Investigator (`K=1..3` `[SHARD:<id>]`, `GOLDFISH-RO-1`) |
+| [**black-hat-judge**](agents/black-hat-judge/agent.md) | [hooks.json](agents/black-hat-judge/hooks.json) | Stage 2 Isolated Holistic Adjudicator (`C6-Multi` / `C6-Holistic`, `CRITIC_VERDICT`) |
+| [**black-hat-critic**](agents/black-hat-critic/agent.md) | [hooks.json](agents/black-hat-critic/hooks.json) | Single-stage adversarial deliverable fallback verifier |
+| [**dreaming-improvement-reasoner**](agents/dreaming-improvement-reasoner/agent.md) | [hooks.json](agents/dreaming-improvement-reasoner/hooks.json) | Nightly Dreaming Pareto error-cluster causal synthesizer |
+| [**workspace-housekeeper**](agents/workspace-housekeeper/agent.md) | [hooks.json](agents/workspace-housekeeper/hooks.json) | Post-dreaming workspace hygiene and mirror synchronization |

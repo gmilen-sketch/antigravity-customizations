@@ -29,10 +29,10 @@ def compute_status_payload() -> dict:
     kg_entities = sum(1 for p in kb_dir.rglob("*.md")) if kb_dir.is_dir() else 6
     return {
         "status": "ok",
-        "version": "1.4.0",
+        "version": "1.5.0",
         "skill_count": skill_count,
         "subagent_count": 5,
-        "mcp_server_count": 7,
+        "mcp_server_count": 10,
         "plugin_packs": plugin_packs,
         "kg_entities": kg_entities,
         "entrypoint": "SIDECAR_UI_ENTRYPOINT_AUX_PANE",

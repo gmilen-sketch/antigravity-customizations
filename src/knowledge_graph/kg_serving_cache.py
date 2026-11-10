@@ -7,11 +7,17 @@ Filters out provisional (`status == 'PROVISIONAL'`) and expired (`decayed_confid
 """
 import json
 import os
+import sys
 import tempfile
 import time
 from typing import Any, Dict, List
 
-WARM_CACHE_PATH = "/dev/shm/kg_warm_cache.json" if os.path.exists("/dev/shm") else "/tmp/kg_warm_cache.json"
+sys.dont_write_bytecode = True
+
+WARM_CACHE_PATH = os.environ.get(
+    "KG_WARM_CACHE_PATH",
+    "/dev/shm/agw_kg_warm_cache.json" if os.path.exists("/dev/shm") else "/tmp/agw_kg_warm_cache.json",
+)
 STEER_SERVING_CONFIDENCE_FLOOR = 0.15
 
 
@@ -33,6 +39,7 @@ def filter_servable_nodes(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def hydrate_serving_cache(graph_path: str, cache_path: str = WARM_CACHE_PATH) -> Dict[str, Any]:
     """Atomically writes the unified serving cache from graph_path."""
+    cache_path = cache_path or os.environ.get("KG_WARM_CACHE_PATH", WARM_CACHE_PATH)
     if not os.path.exists(graph_path):
         return {"status": "missing_source", "graph_path": graph_path}
 

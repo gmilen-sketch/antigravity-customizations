@@ -1,32 +1,34 @@
 #!/usr/bin/env python3
-"""Black-Hat Critic Stop Gate (v4.3 - 2-Stage Stateless Goldfish -> Isolated Judge, Clean-Room Edition).
+"""Black-Hat Critic Stop Gate (v4.18 - Adaptive Multi-Goldfish Wave -> Holistic Judge, Clean-Room Edition).
 
-Antigravity `Stop` lifecycle hook. Forces the agent to run an independent adversarial
-verification pass before it is allowed to end a turn in which it mutated state or
-declared completion.
+Antigravity & Multi-Harness `Stop` lifecycle hook. Forces the agent to run an independent
+adversarial verification pass before ending a turn in which it mutated state or declared completion.
 
-Design invariants (v4.3):
-  1. TURN SCOPE      - evidence is read only from the current turn (everything after
-                       the last USER_INPUT/USER_EXPLICIT step).
+Design invariants (v4.18):
+  1. TURN SCOPE      - evidence is read only from the current turn (after the last USER_INPUT step).
   2. DEFAULT-DENY    - triggers on durable state mutation or explicit deliverable/completion claims.
-  3. STRUCTURAL PROOF- Primary route: 2-stage `black-hat-goldfish` (stateless investigator, C1-C5)
-                       followed by `black-hat-judge` (isolated adjudicator reading goldfish transcript, C6-C8).
-                       Fallback route: single-stage `black-hat-critic` when neither goldfish nor judge
-                       was invoked (unless BH_GATE_STRICT_TWO_STAGE=1).
-  4. ATTACHED CHECKS - runs in-process AST/JSON/file-size/test-facade verification on mutated files.
-  5. BOTTOM SUMMARY  - enforces Compact 2-Part Bottom Summary when a substantive pre-critic response exists.
+  3. STRUCTURAL PROOF- Primary route: 2-stage `black-hat-goldfish` (`K=1..3` `[SHARD:<id>]` wave, C1-C5)
+                       followed by `black-hat-judge` (holistic adjudicator reading 100% shard transcripts, C6-C8).
+                       Fallback route: single-stage `black-hat-critic` when neither goldfish nor judge was invoked.
+  4. ATTACHED CHECKS - runs in-process AST/JSON/file-size/test-facade verification (`compile()`, zero `.pyc`).
+  5. BOTTOM SUMMARY  - enforces Compact 2-Part Bottom Summary & restores held-back deliverable artifact cards.
   6. BOUNDED         - self-throttles on `executionNum` at MAX_FORCED_CONTINUATIONS.
-  7. NON-RECURSIVE   - never gates critic/goldfish/judge/leaf subagents.
+  7. NON-RECURSIVE   - never gates critic/goldfish/judge/leaf subagents or verified isolated SWE sandboxes.
 """
 
 import ast
 import json
 import os
-import py_compile
 import re
 import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
+
+sys.dont_write_bytecode = True
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
 
 MAX_FORCED_CONTINUATIONS = 2
 
@@ -57,7 +59,7 @@ NON_GATED_AGENTS = {
     JUDGE_AGENT_NAME,
     "black_hat_judge",
     "research",
-    "research-agent",
+    "research-assistant",
     "custom_subagent",
     "workspace-housekeeper",
     "workspace_housekeeper",
@@ -67,9 +69,12 @@ NON_GATED_AGENTS = {
 }
 
 HANDCUFF_PROMPT_RE = re.compile(
-    r"\b(use\s+`?view_file`?\s+only|view_file\s+only|do\s+not\s+run\s+(?:any\s+)?(?:shell\s+)?commands(?:\s*$|\s*[.;,)])|skip\s+`?run_command`?|without\s+running\s+commands)\b",
+    r"\b(use\s+`?(?:view_file|read_file)`?\s+only|(?:view_file|read_file)\s+only|do\s+not\s+run\s+(?:any\s+)?(?:shell\s+)?commands(?:\s*$|\s*[.;,)])|skip\s+`?run_command`?|without\s+running\s+commands)\b",
     re.IGNORECASE,
 )
+
+SHARD_TAG_RE = re.compile(r"\[SHARD:([A-Za-z0-9_.\-]{1,40})\]", re.IGNORECASE)
+URL_STRIP_RE = re.compile(r"https?://[^\s<>)\]`\"']+", re.IGNORECASE)
 
 GOLDFISH_SPIN_PATTERNS = [
     r"\bphase[- ]?2\b",
@@ -91,18 +96,23 @@ GOLDFISH_SPIN_PATTERNS = [
 ]
 
 FILE_MUTATING_TOOLS = {
+    "write_file",
     "write_to_file",
     "replace_file_content",
+    "multi_replace_file_content",
     "notebook_edit",
     "edit_file",
     "create_file",
+    "Write",
+    "Edit",
+    "MultiEdit",
 }
 
 MUTATING_TOOLS = FILE_MUTATING_TOOLS | {
     "generate_image",
 }
 
-TARGET_KEYS = ("TargetFile", "AbsolutePath", "NotebookPath", "path", "file_path", "ImageName")
+TARGET_KEYS = ("Path", "TargetFile", "AbsolutePath", "NotebookPath", "path", "file_path", "ImageName")
 
 MUTATING_COMMAND_PATTERNS = [
     r"(^|[;&|]\s*)(rm|mv|cp|mkdir|rmdir|chmod|chown|ln|touch|truncate)\s",
@@ -117,7 +127,7 @@ MUTATING_COMMAND_PATTERNS = [
     r"\bkubectl\s+(apply|delete|create|patch|scale)\b",
     r"\bterraform\s+(apply|destroy)\b",
     r"\b(diagram[-_]renderer|mmdc)\b",
-    r"(?<![>-])>>?\s*[^\s|&]+",
+    r"(?<![>-])>>?\s*(?!/dev/null(?:\s|$|[;&|)]))[^\s|&]+",
 ]
 
 READONLY_MCP_PREFIXES = (
@@ -180,7 +190,7 @@ APPROVED_VERDICT = re.compile(r"CRITIC_VERDICT\s*[:=]\s*APPROVED", re.IGNORECASE
 REJECTED_VERDICT = re.compile(r"CRITIC_VERDICT\s*[:=]\s*REJECTED", re.IGNORECASE)
 
 BRAIN_CANDIDATE_ROOTS = [
-    os.path.expanduser("~/.gemini/antigravity/brain"),
+    os.path.expanduser(os.environ.get("ANTIGRAVITY_BRAIN_DIR") or "~/.gemini/antigravity/brain"),
     "/mnt/data/.gemini/antigravity/brain",
 ]
 
@@ -377,20 +387,54 @@ def is_mutating_command(command: str) -> bool:
     return False
 
 
+MUTATING_MCP_PREFIXES = (
+    "create_",
+    "delete_",
+    "update_",
+    "write_",
+    "mutate_",
+    "insert_",
+    "remove_",
+    "patch_",
+    "drop_",
+    "upsert_",
+    "put_",
+    "post_",
+    "send_",
+    "apply_",
+    "assign_",
+    "edit_",
+    "add_",
+    "cancel_",
+    "set_",
+)
+
+
 def is_mutating_mcp(tool_name: str, args: Dict[str, Any]) -> bool:
     raw = (tool_name or "").lower()
     if raw == "call_mcp_tool":
         name = str(args.get("ToolName") or "").lower()
+        candidates = [name] if name else []
     elif raw.startswith("mcp_"):
-        parts = raw.split("_", 2)
-        name = parts[2] if len(parts) > 2 else ""
+        rest = raw[4:]
+        if "_" not in rest:
+            return True
+        candidates = [
+            rest[idx + 1 :]
+            for idx, ch in enumerate(rest)
+            if ch == "_" and rest[idx + 1 :]
+        ]
     else:
         return False
-    if not name:
+    if not candidates:
         return True
-    if any(marker in name for marker in READONLY_MCP_MARKERS):
+    if any(marker in candidates[0] for marker in READONLY_MCP_MARKERS):
         return False
-    return not name.startswith(READONLY_MCP_PREFIXES)
+    if any(cand.startswith(MUTATING_MCP_PREFIXES) for cand in candidates):
+        return True
+    if any(cand == "execute_sql" for cand in candidates):
+        return True
+    return not any(cand.startswith(READONLY_MCP_PREFIXES) for cand in candidates)
 
 
 def detect_mutations(turn: List[Dict[str, Any]], artifact_dir: str) -> List[str]:
@@ -407,8 +451,8 @@ def detect_mutations(turn: List[Dict[str, Any]], artifact_dir: str) -> List[str]
             if not is_exempt_target(target, artifact_dir):
                 mutations.append(f"{name} -> {target or '<unknown target>'}")
             continue
-        if name == "run_command":
-            command = str(args.get("CommandLine") or "")
+        if name in ("run_command", "Bash", "bash"):
+            command = str(args.get("CommandLine") or args.get("command") or "")
             if is_mutating_command(command):
                 mutations.append(f"run_command -> {command[:120]}")
             continue
@@ -560,11 +604,49 @@ def read_subagent_verdict(conversation_id: str) -> Tuple[Optional[str], str]:
 def detect_goldfish_spin(prompt: str) -> Optional[str]:
     if not prompt:
         return None
+    cleaned = URL_STRIP_RE.sub(" ", prompt)
     for pattern in GOLDFISH_SPIN_PATTERNS:
-        match = re.search(pattern, prompt, re.IGNORECASE)
+        match = re.search(pattern, cleaned, re.IGNORECASE)
         if match:
             return match.group(0)
     return None
+
+
+def detect_goldfish_transcript_mutations(entries: List[Dict[str, Any]], goldfish_cid: str) -> Optional[str]:
+    """GOLDFISH-RO-1 (`C3b`): Scans Stage-1 goldfish transcript for prohibited disk mutations."""
+    try:
+        from sentinel_dispatch import enforce_goldfish_readonly_command
+    except Exception:
+        enforce_goldfish_readonly_command = None
+
+    for entry in entries:
+        for call in entry.get("tool_calls") or []:
+            if not isinstance(call, dict):
+                continue
+            cname = str(call.get("name") or "")
+            cargs = _decode_args(call.get("args"))
+            if cname in MUTATING_TOOLS:
+                return f"goldfish {goldfish_cid[:8]} called prohibited mutating tool '{cname}' (GOLDFISH-RO-1 C3b)"
+            if cname == "run_command" and enforce_goldfish_readonly_command is not None:
+                res = enforce_goldfish_readonly_command(
+                    "run_command",
+                    cargs,
+                    agent_name=GOLDFISH_AGENT_NAME,
+                    conversation_id=goldfish_cid,
+                )
+                if res is not None and res.get("decision") == "deny":
+                    return f"goldfish {goldfish_cid[:8]} executed prohibited mutating shell command ({res.get('reason', '')})"
+    return None
+
+
+def _parse_discrepancy_count(text: str) -> Optional[int]:
+    matches = re.findall(r"DISCREPANCY_COUNT\s*:\s*\**\s*`?(\d+)`?", text or "", re.IGNORECASE)
+    if not matches:
+        return None
+    try:
+        return int(matches[-1])
+    except ValueError:
+        return None
 
 
 def read_goldfish_dossier(conversation_id: str) -> Tuple[bool, str]:
@@ -575,6 +657,7 @@ def read_goldfish_dossier(conversation_id: str) -> Tuple[bool, str]:
     model_steps = 0
     tool_calls_count = 0
     prose_chunks: List[str] = []
+    parsed_entries: List[Dict[str, Any]] = []
     try:
         with open(path, "r", encoding="utf-8", errors="ignore") as handle:
             for line in handle:
@@ -587,6 +670,7 @@ def read_goldfish_dossier(conversation_id: str) -> Tuple[bool, str]:
                     continue
                 if not isinstance(entry, dict):
                     continue
+                parsed_entries.append(entry)
                 if entry.get("type") in MODEL_PROSE_TYPES:
                     model_steps += 1
                     prose_chunks.append(_entry_model_text(entry))
@@ -601,6 +685,11 @@ def read_goldfish_dossier(conversation_id: str) -> Tuple[bool, str]:
             f"goldfish {conversation_id[:8]} transcript shows no real audit activity "
             f"({tool_calls_count} tool calls, {model_steps} model steps)"
         )
+
+    mut_hit = detect_goldfish_transcript_mutations(parsed_entries, conversation_id)
+    if mut_hit:
+        return False, mut_hit
+
     full_prose = "\n".join(prose_chunks)
     if REJECTED_VERDICT.search(full_prose) or APPROVED_VERDICT.search(full_prose):
         return False, (
@@ -609,17 +698,32 @@ def read_goldfish_dossier(conversation_id: str) -> Tuple[bool, str]:
         )
     if "FORENSIC_EVIDENCE_DOSSIER" not in full_prose:
         return False, f"goldfish {conversation_id[:8]} did not emit FORENSIC_EVIDENCE_DOSSIER"
-    return True, f"goldfish {conversation_id[:8]} emitted FORENSIC_EVIDENCE_DOSSIER ({tool_calls_count} tool calls)"
+    disc_count = _parse_discrepancy_count(full_prose)
+    if disc_count is not None and disc_count > 0:
+        return False, (
+            f"goldfish {conversation_id[:8]} reported DISCREPANCY_COUNT: {disc_count} (> 0); "
+            "remediate all discrepancies and re-verify affected shard(s) before invoking black-hat-judge"
+        )
+    return True, f"goldfish {conversation_id[:8]} emitted FORENSIC_EVIDENCE_DOSSIER (DISCREPANCY_COUNT=0, {tool_calls_count} tool calls)"
 
 
-def read_judge_verdict(judge_cid: str, goldfish_cid: str) -> Tuple[Optional[str], str]:
+def read_judge_verdict(judge_cid: str, goldfish_cids: Any) -> Tuple[Optional[str], str]:
+    """v4.18 Holistic Judge Validator (`C6-Multi` + `C6-Holistic`): accepts single `str` or `List[str]` of active shard CIDs."""
+    wave_cids: List[str] = (
+        [goldfish_cids.lower()]
+        if isinstance(goldfish_cids, str)
+        else [str(c).lower() for c in (goldfish_cids or []) if c]
+    )
+    if not wave_cids:
+        return None, f"judge {judge_cid[:8]} invoked with empty goldfish wave"
+
     path, err = _resolve_subagent_transcript(judge_cid, "judge")
     if not path:
         return None, err
 
     model_steps = 0
     tool_calls_count = 0
-    first_tool_call: Optional[Tuple[str, Dict[str, Any]]] = None
+    read_paths: List[Tuple[str, str]] = []
     forbidden_tool: Optional[str] = None
     approved = False
     rejected = False
@@ -652,14 +756,22 @@ def read_judge_verdict(judge_cid: str, goldfish_cid: str) -> Tuple[Optional[str]
                     tool_calls_count += 1
                     cname = str(call.get("name") or "")
                     cargs = _decode_args(call.get("args"))
-                    if first_tool_call is None:
-                        first_tool_call = (cname, cargs)
-                    if cname == "run_command" or cname in MUTATING_TOOLS:
+                    if cname in ("read_file", "view_file", "Read"):
+                        rp = str(
+                            cargs.get("Path")
+                            or cargs.get("AbsolutePath")
+                            or cargs.get("path")
+                            or cargs.get("TargetFile")
+                            or cargs.get("file_path")
+                            or ""
+                        )
+                        read_paths.append((cname, rp))
+                    elif cname in ("run_command", "Bash", "bash", "invoke_subagent", "define_subagent") or cname in MUTATING_TOOLS:
                         forbidden_tool = cname
     except Exception as exc:
         return None, f"judge transcript unreadable: {exc!r}"
 
-    if tool_calls_count < 1 or model_steps < 1 or first_tool_call is None:
+    if tool_calls_count < 1 or model_steps < 1 or not read_paths:
         return None, (
             f"judge {judge_cid[:8]} transcript shows no real audit activity "
             f"({tool_calls_count} tool calls, {model_steps} model steps)"
@@ -670,49 +782,66 @@ def read_judge_verdict(judge_cid: str, goldfish_cid: str) -> Tuple[Optional[str]
             "(judge must be zero-shell and read-only)"
         )
 
-    first_name, first_args = first_tool_call
-    first_path = str(
-        first_args.get("AbsolutePath")
-        or first_args.get("path")
-        or first_args.get("TargetFile")
-        or ""
-    )
-    valid_link = (
-        first_name == "view_file"
-        and goldfish_cid.lower() in first_path.lower()
-        and (
-            first_path.endswith("transcript.jsonl")
-            or first_path.endswith("transcript_full.jsonl")
-        )
-    )
-    if not valid_link:
+    def _is_gf_transcript(p: str, target_cid: str) -> bool:
+        pl = p.lower()
+        return target_cid in pl and (pl.endswith("transcript.jsonl") or pl.endswith("transcript_full.jsonl"))
+
+    first_name, first_path = read_paths[0]
+    if not any(_is_gf_transcript(first_path, gcid) for gcid in wave_cids):
         return None, (
             f"judge {judge_cid[:8]} first tool call ({first_name} -> {os.path.basename(first_path) or '<none>'}) "
-            f"did not read spawned goldfish {goldfish_cid[:8]} transcript"
+            f"did not read an active goldfish shard transcript ({', '.join(c[:8] for c in wave_cids)})"
         )
+
+    missing_cids = [gcid for gcid in wave_cids if not any(_is_gf_transcript(rp, gcid) for _, rp in read_paths)]
+    if missing_cids:
+        return None, (
+            f"judge {judge_cid[:8]} failed C6-Multi: did not read active goldfish shard transcript(s) "
+            f"{', '.join(c[:8] for c in missing_cids)}"
+        )
+
+    if len(wave_cids) >= 2:
+        deliverable_reads = [
+            rp for _, rp in read_paths
+            if rp and not any(_is_gf_transcript(rp, gcid) for gcid in wave_cids)
+            and not rp.lower().endswith(("transcript.jsonl", "transcript_full.jsonl"))
+        ]
+        if not deliverable_reads:
+            return None, (
+                f"judge {judge_cid[:8]} failed C6-Holistic: K={len(wave_cids)} goldfish shards active, "
+                "so judge must also spot-check >= 1 deliverable via read_file for cross-shard seam validation"
+            )
 
     if rejected:
         return "REJECTED", f"judge {judge_cid[:8]} returned CRITIC_VERDICT: REJECTED"
     if mitm_detected:
         return (
             "REJECTED",
-            f"judge {judge_cid[:8]} detected MITM_LAUNDERING between primary agent summary and goldfish {goldfish_cid[:8]} transcript",
+            f"judge {judge_cid[:8]} detected MITM_LAUNDERING between primary agent summary and goldfish wave ({', '.join(c[:8] for c in wave_cids)})",
         )
     if approved:
+        wave_lbl = ",".join(c[:8] for c in wave_cids)
         return (
             "APPROVED",
-            f"2-stage goldfish ({goldfish_cid[:8]}) -> judge ({judge_cid[:8]}) returned CRITIC_VERDICT: APPROVED",
+            f"2-stage goldfish ({wave_lbl}; K={len(wave_cids)}) -> judge ({judge_cid[:8]}) returned CRITIC_VERDICT: APPROVED",
         )
     return None, f"judge {judge_cid[:8]} produced no verdict"
 
 
+def _extract_shard_id(role_text: str, prompt_text: str) -> Optional[str]:
+    m = SHARD_TAG_RE.search(f"{role_text or ''} {prompt_text or ''}")
+    return m.group(1).lower() if m else None
+
+
 def _extract_subagent_spawns(
     turn: List[Dict[str, Any]], target_typename: str
-) -> List[Tuple[int, str, Optional[str], bool]]:
+) -> List[Tuple[int, str, Optional[str], bool, Optional[str]]]:
+    """v4.18 parallel-safe subagent spawn extractor (`flat_sub_idx` across co-spawned tool_calls + `[SHARD:<id>]`)."""
     target = target_typename.strip().lower()
-    spawns: List[Tuple[int, str, Optional[str], bool]] = []
+    spawns: List[Tuple[int, str, Optional[str], bool, Optional[str]]] = []
     for idx, entry in enumerate(turn):
-        matched_prompts: List[Tuple[int, str]] = []
+        matched_prompts: List[Tuple[int, str, Optional[str]]] = []
+        flat_sub_idx = 0
         for call in entry.get("tool_calls") or []:
             if not isinstance(call, dict) or call.get("name") != "invoke_subagent":
                 continue
@@ -724,128 +853,193 @@ def _extract_subagent_spawns(
                 except Exception:
                     sub_list = None
             if isinstance(sub_list, list) and sub_list:
-                for sub_idx, s_item in enumerate(sub_list):
-                    if isinstance(s_item, dict) and isinstance(s_item.get("TypeName"), str):
-                        if s_item["TypeName"].strip().lower() == target:
-                            matched_prompts.append(
-                                (sub_idx, str(s_item.get("Prompt") or call_args.get("Prompt") or ""))
-                            )
+                for s_item in sub_list:
+                    if isinstance(s_item, dict):
+                        tname = str(s_item.get("TypeName") or "").strip().lower()
+                        if tname == target:
+                            ptxt = str(s_item.get("Prompt") or call_args.get("Prompt") or "")
+                            rtxt = str(s_item.get("Role") or call_args.get("Role") or "")
+                            matched_prompts.append((flat_sub_idx, ptxt, _extract_shard_id(rtxt, ptxt)))
+                    flat_sub_idx += 1
             elif isinstance(call_args.get("TypeName"), str):
-                if call_args["TypeName"].strip().lower() == target:
-                    matched_prompts.append((0, str(call_args.get("Prompt") or "")))
+                tname = call_args["TypeName"].strip().lower()
+                if tname == target:
+                    ptxt = str(call_args.get("Prompt") or "")
+                    rtxt = str(call_args.get("Role") or "")
+                    matched_prompts.append((flat_sub_idx, ptxt, _extract_shard_id(rtxt, ptxt)))
+                flat_sub_idx += 1
         if not matched_prompts:
             continue
         extracted_cids: List[str] = []
         for result in turn[idx + 1 :]:
-            if result.get("type") in MODEL_PROSE_TYPES:
+            if result.get("type") in MODEL_PROSE_TYPES or result.get("type") == "USER_INPUT":
                 break
             content = str(result.get("content") or "")
             if "conversationid" in content.lower():
                 found = [cid.lower() for cid in extract_conversation_ids(content)]
-                if found:
-                    extracted_cids.extend(found)
+                for fcid in found:
+                    if fcid not in extracted_cids:
+                        extracted_cids.append(fcid)
+                if len(extracted_cids) >= flat_sub_idx:
                     break
-        for pos, (sub_idx, prompt_text) in enumerate(matched_prompts):
+        for pos, (sub_idx, prompt_text, shard_id) in enumerate(matched_prompts):
             cid = None
             if sub_idx < len(extracted_cids):
                 cid = extracted_cids[sub_idx]
-            elif pos < len(extracted_cids):
+            elif pos < len(extracted_cids) and flat_sub_idx == len(matched_prompts):
                 cid = extracted_cids[pos]
             is_handcuffed = bool(HANDCUFF_PROMPT_RE.search(prompt_text))
-            spawns.append((idx, prompt_text, cid, is_handcuffed))
+            spawns.append((idx, prompt_text, cid, is_handcuffed, shard_id))
     return spawns
 
 
+def resolve_active_goldfish_wave(
+    goldfish_spawns: List[Tuple[int, str, Optional[str], bool, Optional[str]]],
+    judge_spawns: List[Tuple[int, str, Optional[str], bool, Optional[str]]],
+) -> List[Tuple[int, str, Optional[str], bool, Optional[str]]]:
+    """Resolves the active `K=1..3` Goldfish wave after the most recent rejected/superseded Judge round."""
+    if not goldfish_spawns:
+        return []
+    last_gf_step = goldfish_spawns[-1][0]
+    prior_judges = [j[0] for j in judge_spawns if j[0] < last_gf_step]
+    wave_floor = (max(prior_judges) + 1) if prior_judges else 0
+    post_floor = [g for g in goldfish_spawns if g[0] >= wave_floor]
+    if not post_floor:
+        post_floor = [goldfish_spawns[-1]]
+
+    has_any_shard_tag = any(g[4] is not None for g in post_floor)
+    if has_any_shard_tag:
+        latest_untagged_step = max((g[0] for g in post_floor if g[4] is None), default=-1)
+        sharded_after = [g for g in post_floor if g[0] > latest_untagged_step]
+        if not sharded_after:
+            return [g for g in post_floor if g[0] == latest_untagged_step]
+        by_shard: Dict[str, Tuple[int, str, Optional[str], bool, Optional[str]]] = {}
+        untagged_same_step: List[Tuple[int, str, Optional[str], bool, Optional[str]]] = []
+        for item in sharded_after:
+            sid = item[4]
+            if sid:
+                by_shard[sid] = item
+            else:
+                untagged_same_step.append(item)
+        return list(by_shard.values()) + untagged_same_step
+
+    return [g for g in post_floor if g[0] == last_gf_step]
+
+
 def find_goldfish_judge_proof(
-    goldfish_spawns: List[Tuple[int, str, Optional[str], bool]],
-    judge_spawns: List[Tuple[int, str, Optional[str], bool]],
-) -> Tuple[bool, str]:
+    goldfish_spawns: List[Tuple[int, str, Optional[str], bool, Optional[str]]],
+    judge_spawns: List[Tuple[int, str, Optional[str], bool, Optional[str]]],
+) -> Tuple[bool, str, int]:
+    """v4.18 Multi-Goldfish Wave Barrier (`C2-Wave`, `C4b-Wave`, `C5b-Wave`, `C6-Multi`, `C6-Holistic`, `C10b`)."""
     if not goldfish_spawns:
         return (
             False,
             "black-hat-judge invoked without a preceding black-hat-goldfish investigation in this turn",
+            -1,
         )
-    g_idx, g_prompt, g_cid, g_restricted = goldfish_spawns[-1]
-    if g_restricted:
-        return (
-            False,
-            "goldfish prompt restricted independent command execution ('view_file only' / 'do not run commands' is prohibited)",
-        )
-    spin_hit = detect_goldfish_spin(g_prompt)
-    if spin_hit:
-        return (
-            False,
-            f"goldfish prompt contains prohibited spin/excuse framing ({spin_hit!r}); pass de-contextualized claims, paths, and commands only",
-        )
-    if not g_cid:
-        return False, "black-hat-goldfish invoked but no spawn result with a conversation id"
 
-    gf_ok, gf_detail = read_goldfish_dossier(g_cid)
-    if not gf_ok:
-        return False, gf_detail
+    active_wave = resolve_active_goldfish_wave(goldfish_spawns, judge_spawns)
+    min_wave_idx = min(g[0] for g in active_wave)
+    max_wave_idx = max(g[0] for g in active_wave)
+
+    wave_cids: List[str] = []
+    for g_idx, g_prompt, g_cid, g_restricted, g_shard in active_wave:
+        shard_lbl = f" [SHARD:{g_shard}]" if g_shard else ""
+        if g_restricted:
+            return (
+                False,
+                f"goldfish{shard_lbl} prompt restricted independent command execution ('read_file only' / 'do not run commands' is prohibited)",
+                min_wave_idx,
+            )
+        spin_hit = detect_goldfish_spin(g_prompt)
+        if spin_hit:
+            return (
+                False,
+                f"goldfish{shard_lbl} prompt contains prohibited spin/excuse framing ({spin_hit!r}); pass de-contextualized claims, paths, and commands only",
+                min_wave_idx,
+            )
+        if not g_cid:
+            return False, f"black-hat-goldfish{shard_lbl} invoked at step {g_idx} without a resolved conversationId", min_wave_idx
+        gf_ok, gf_detail = read_goldfish_dossier(g_cid)
+        if not gf_ok:
+            return False, f"{gf_detail}{shard_lbl}", min_wave_idx
+        if g_cid not in wave_cids:
+            wave_cids.append(g_cid)
 
     if not judge_spawns:
         return (
             False,
-            f"Stage-1 black-hat-goldfish ({g_cid[:8]}) completed FORENSIC_EVIDENCE_DOSSIER, "
-            "but Stage-2 black-hat-judge has not been invoked yet; invoke black-hat-judge with goldfish transcript path",
+            f"Stage-1 black-hat-goldfish wave ({','.join(c[:8] for c in wave_cids)}; K={len(wave_cids)}) completed FORENSIC_EVIDENCE_DOSSIER, "
+            "but Stage-2 black-hat-judge has not been invoked yet; invoke black-hat-judge with all active goldfish transcript paths",
+            min_wave_idx,
         )
 
-    j_idx, _j_prompt, j_cid, _j_restricted = judge_spawns[-1]
-    if j_idx <= g_idx:
-        if len(goldfish_spawns) > 1 and goldfish_spawns[0][0] < j_idx:
+    j_idx, _j_prompt, j_cid, _j_restricted, _j_shard = judge_spawns[-1]
+    if j_idx <= max_wave_idx:
+        if any(g[0] < j_idx for g in goldfish_spawns):
             return (
                 False,
-                f"Stage-1 black-hat-goldfish ({g_cid[:8]}) completed FORENSIC_EVIDENCE_DOSSIER, "
-                "but Stage-2 black-hat-judge has not been invoked for this round yet; invoke black-hat-judge with goldfish transcript path",
+                f"Stage-1 black-hat-goldfish wave ({','.join(c[:8] for c in wave_cids)}) completed after earlier judge step {j_idx}; "
+                "invoke Stage-2 black-hat-judge for the updated goldfish wave",
+                min_wave_idx,
             )
         return (
             False,
-            f"black-hat-judge (step {j_idx}) must be invoked in a strictly later step after black-hat-goldfish (step {g_idx}) completes",
+            f"black-hat-judge (step {j_idx}) must be invoked in a strictly later step after all active black-hat-goldfish shards (step {max_wave_idx}) complete",
+            min_wave_idx,
         )
     if not j_cid:
-        return False, "black-hat-judge invoked but no spawn result with a conversation id"
-    if j_cid == g_cid:
-        return False, "black-hat-judge conversation id cannot equal black-hat-goldfish conversation id"
+        return False, "black-hat-judge invoked without a resolved conversationId", min_wave_idx
+    if j_cid in wave_cids:
+        return False, "black-hat-judge conversation id cannot equal any black-hat-goldfish conversation id", min_wave_idx
 
-    verdict, j_detail = read_judge_verdict(j_cid, g_cid)
+    verdict, j_detail = read_judge_verdict(j_cid, wave_cids)
     if verdict == "APPROVED":
-        return True, j_detail
-    return False, j_detail
+        return True, j_detail, min_wave_idx
+    return False, j_detail, min_wave_idx
 
 
 def find_structural_proof(turn: List[Dict[str, Any]]) -> Tuple[bool, str]:
+    ok, detail, _ = find_structural_proof_with_index(turn)
+    return ok, detail
+
+
+def find_structural_proof_with_index(turn: List[Dict[str, Any]]) -> Tuple[bool, str, int]:
     goldfish_spawns = _extract_subagent_spawns(turn, GOLDFISH_AGENT_NAME)
     judge_spawns = _extract_subagent_spawns(turn, JUDGE_AGENT_NAME)
     if goldfish_spawns or judge_spawns:
         return find_goldfish_judge_proof(goldfish_spawns, judge_spawns)
 
     if os.environ.get("BH_GATE_STRICT_TWO_STAGE") == "1":
-        return False, "no 2-stage black-hat-goldfish -> black-hat-judge verification executed in this turn"
+        return False, "no 2-stage black-hat-goldfish -> black-hat-judge verification executed in this turn", -1
 
     critic_spawns = _extract_subagent_spawns(turn, CRITIC_AGENT_NAME)
     if not critic_spawns:
-        return False, "no independent verification executed in this turn"
+        return False, "no independent verification executed in this turn", -1
 
-    spawn_ids = [cid for _, _, cid, restricted in critic_spawns if cid and not restricted]
-    restricted_prompt_detected = any(restricted for _, _, _, restricted in critic_spawns)
-    if not spawn_ids and restricted_prompt_detected:
+    spawn_pairs = [(idx, cid) for idx, _, cid, restricted, _ in critic_spawns if cid and not restricted]
+    restricted_prompt_detected = any(restricted for _, _, _, restricted, _ in critic_spawns)
+    if not spawn_pairs and restricted_prompt_detected:
         return (
             False,
-            "critic prompt restricted independent command execution ('view_file only' / 'do not run commands' is prohibited)",
+            "critic prompt restricted independent command execution ('read_file only' / 'do not run commands' is prohibited)",
+            -1,
         )
-    if not spawn_ids:
-        return False, "critic subagent invoked but no spawn result with a conversation id"
+    if not spawn_pairs:
+        return False, "critic subagent invoked without a resolved conversation id", -1
 
-    verdicts: List[Tuple[Optional[str], str]] = [
-        read_subagent_verdict(cid) for cid in dict.fromkeys(spawn_ids)
-    ]
-    for verdict, detail in reversed(verdicts):
+    seen_cids: List[Tuple[int, str]] = []
+    for s_idx, s_cid in spawn_pairs:
+        if s_cid not in {c for _, c in seen_cids}:
+            seen_cids.append((s_idx, s_cid))
+    for s_idx, s_cid in reversed(seen_cids):
+        verdict, detail = read_subagent_verdict(s_cid)
         if verdict == "APPROVED":
-            return True, detail
+            return True, detail, s_idx
         if verdict == "REJECTED":
-            return False, detail
-    return False, verdicts[-1][1] if verdicts else "critic produced no verdict"
+            return False, detail, s_idx
+    _, last_detail = read_subagent_verdict(seen_cids[-1][1])
+    return False, last_detail or "critic produced no verdict", seen_cids[-1][0]
 
 
 def extract_pre_critic_response(turn: List[Dict[str, Any]]) -> str:
@@ -928,7 +1122,7 @@ def rejection_text(
         )
     brain_root = BRAIN_CANDIDATE_ROOTS[0]
     return (
-        "BLACK-HAT CRITIC GATE (v4.3 Goldfish -> Judge): independent verification missing.\n\n"
+        "BLACK-HAT CRITIC GATE (v4.18 Adaptive Goldfish -> Holistic Judge): independent verification missing.\n\n"
         f"{claim_line}"
         f"State mutated in this turn:\n{listed}\n\n"
         f"Gate status: {proof_detail}.\n\n"
@@ -971,6 +1165,8 @@ def run_attached_black_hat_verification(
         parent_dir = os.path.dirname(normalized)
         if not parent_dir or not os.path.isdir(parent_dir):
             continue
+        if os.path.islink(normalized):
+            continue
 
         bname = os.path.basename(normalized)
         if not os.path.exists(normalized):
@@ -985,7 +1181,7 @@ def run_attached_black_hat_verification(
                 with open(normalized, "r", encoding="utf-8") as fh:
                     src = fh.read()
                 tree = ast.parse(src, filename=normalized)
-                py_compile.compile(normalized, doraise=True)
+                compile(src, normalized, "exec")
                 if bname.startswith("test_") or bname.endswith("_test.py"):
                     for node in ast.walk(tree):
                         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test"):
@@ -997,8 +1193,6 @@ def run_attached_black_hat_verification(
                                         )
             except SyntaxError as exc:
                 failures.append(f"attached-check: Python SyntaxError in {bname}:{exc.lineno}: {exc.msg}")
-            except py_compile.PyCompileError as exc:
-                failures.append(f"attached-check: py_compile failed for {bname}: {exc.msg}")
             except Exception as exc:
                 failures.append(f"attached-check: Python verification error in {bname}: {exc!r}")
 
@@ -1024,11 +1218,7 @@ def last_critic_step_index(turn: List[Dict[str, Any]]) -> int:
 
 
 def detect_case_r_reactive_task_wakeup(turn: List[Dict[str, Any]], steps: List[Dict[str, Any]]) -> bool:
-    """
-    Case R Reactive `/task-` Wakeup Phase-2 Write Unlock (`harden_kg_prompt_and_zero_pyc_gate`):
-    Detects when the turn was resumed by an asynchronous background `/task-` or subagent wakeup
-    notification so Phase-2 synthesis can proceed without false pre-wakeup mutation lockouts.
-    """
+    """Case R Reactive `/task-` Wakeup Phase-2 Write Unlock."""
     for entry in reversed(steps[-6:] if len(steps) >= 6 else steps):
         content = str(entry.get("content") or "")
         if "/task-" in content or "background task" in content.lower() or "subagent completed" in content.lower():
@@ -1052,6 +1242,32 @@ def is_isolated_swe_sandbox_turn(payload: Dict[str, Any], seed_text: str) -> boo
     return False
 
 
+def _restore_held_artifacts(artifact_dir: str) -> List[str]:
+    if not artifact_dir:
+        return []
+    try:
+        from black_hat_in_progress_ux_hook import restore_deliverable_artifact_cards
+
+        return restore_deliverable_artifact_cards(artifact_dir)
+    except Exception:
+        return []
+
+
+def _is_isolated_swe_benchmark_turn(payload: Dict[str, Any]) -> bool:
+    if os.environ.get("AGW_EXECUTION_MODE", "").strip().upper() == "SWE_BENCHMARK_MODE":
+        return True
+    try:
+        from kg_pre_invocation_hook import classify_execution_mode
+
+        mode_res = classify_execution_mode(
+            str(payload.get("prompt") or ""),
+            cwd=str(payload.get("cwd") or ""),
+        )
+        return mode_res.get("mode") == "SWE_BENCHMARK_MODE"
+    except Exception:
+        return False
+
+
 def evaluate(payload: Dict[str, Any]) -> Dict[str, Any]:
     reason_code = get_str(payload, "terminationReason", "termination_reason").upper()
     reason_code = reason_code.replace("EXECUTOR_TERMINATION_REASON_", "")
@@ -1063,8 +1279,13 @@ def evaluate(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     root_cid = get_str(payload, "rootConversationId", "root_conversation_id", "conversationId", "conversation_id", "session_id")
 
-    def allow(why: str, **extra: Any) -> Dict[str, Any]:
+    def allow(why: str, restore_cards: bool = True, **extra: Any) -> Dict[str, Any]:
+        restored: List[str] = []
+        if restore_cards and fully_idle is not False and agent_name not in NON_GATED_AGENTS:
+            restored = _restore_held_artifacts(artifact_dir)
         out = {"decision": "allow", "audit": why, "rootConversationId": root_cid}
+        if restored:
+            out["restoredArtifacts"] = restored
         out.update(extra)
         return out
 
@@ -1072,10 +1293,10 @@ def evaluate(payload: Dict[str, Any]) -> Dict[str, Any]:
         return allow(f"termination reason {reason_code} is not gated")
 
     if agent_name in NON_GATED_AGENTS:
-        return allow(f"agent {agent_name} is exempt")
+        return allow(f"agent {agent_name} is exempt", restore_cards=False)
 
     if fully_idle is False:
-        return allow("dependents still running")
+        return allow("dependents still running", restore_cards=False)
 
     if execution_num >= MAX_FORCED_CONTINUATIONS:
         return allow(
@@ -1097,7 +1318,6 @@ def evaluate(payload: Dict[str, Any]) -> Dict[str, Any]:
     turn = slice_current_turn(steps)
     case_r_wakeup = detect_case_r_reactive_task_wakeup(turn, steps)
 
-    # LL-2: Run attached in-process workspace/AST verification BEFORE black-hat seed early return
     if turn:
         attached_ok_early, attached_failures_early = run_attached_black_hat_verification(turn, artifact_dir)
         if not attached_ok_early:
@@ -1114,7 +1334,6 @@ def evaluate(payload: Dict[str, Any]) -> Dict[str, Any]:
     if re.search(r"black[- ]hat|CRITIC_VERDICT", seed, re.IGNORECASE):
         return allow("conversation seeded as a black-hat audit", case_r_wakeup=case_r_wakeup)
 
-    turn = slice_current_turn(steps)
     if not turn:
         return allow("no steps in current turn")
 
@@ -1144,15 +1363,27 @@ def evaluate(payload: Dict[str, Any]) -> Dict[str, Any]:
             "claim": claim,
         }
 
-    proof_found, proof_detail = find_structural_proof(turn)
+    if _is_isolated_swe_benchmark_turn(payload):
+        swe_proof = has_post_mutation_local_test_proof(turn)
+        if swe_proof.get("verified"):
+            return allow(
+                "isolated SWE_BENCHMARK_MODE verified by post-mutation local test execution",
+                mutations=len(mutations),
+                claim=claim,
+            )
+
+    proof_found, proof_detail, min_wave_idx = find_structural_proof_with_index(turn)
     if proof_found:
         critic_idx = last_critic_step_index(turn)
+        guard_idx = critic_idx
+        if min_wave_idx >= 0 and (guard_idx < 0 or min_wave_idx < guard_idx):
+            guard_idx = min_wave_idx
         post_critic_mutations = (
-            detect_mutations(turn[critic_idx + 1 :], artifact_dir) if critic_idx >= 0 else []
+            detect_mutations(turn[guard_idx + 1 :], artifact_dir) if guard_idx >= 0 else []
         )
         if post_critic_mutations:
             post_detail = (
-                f"state mutated after critic/judge ran ({', '.join(post_critic_mutations[:3])}); "
+                f"state mutated after goldfish/judge wave started ({', '.join(post_critic_mutations[:3])}); "
                 "re-run verification as the final step after all mutations"
             )
             return {
@@ -1221,18 +1452,15 @@ def main() -> None:
     print(json.dumps(response))
 
 
+def _strip_inline_backtick_spans(text: str) -> str:
+    """Replaces single-line `inline code` spans so literal `<details>` or pipes do not trip prose parsers."""
+    if not text:
+        return ""
+    return re.sub(r"(?<!`)`[^`\n]+`(?!`)", "code", text)
 
-
-# ==============================================================================
-# v4.8 Clean-Room Upgrades: C9 Pre-Prose Table Gate, Bottom-Up TL;DR Pyramid,
-# AST Reward-Hack / Test-Tampering Auditor & Subagent Proof Freshness
-# ==============================================================================
 
 def check_c9_pre_prose_table_gate(turn_steps: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    C9 Pre-Prose Table Gate: When a post-compaction response contains a multi-row Markdown table,
-    verifies that the table artifact was read back via view_file prior to prose emission.
-    """
+    """C9 Pre-Prose Table Gate (`G5a` >= 5-Row Floor)."""
     if not turn_steps:
         return {"passed": True, "reason": "No steps"}
     last_prose = ""
@@ -1240,14 +1468,27 @@ def check_c9_pre_prose_table_gate(turn_steps: List[Dict[str, Any]]) -> Dict[str,
         if step.get("type") == "PLANNER_RESPONSE" and step.get("content"):
             last_prose = str(step.get("content", ""))
             break
-    table_lines = [ln for ln in last_prose.splitlines() if ln.strip().startswith("|") and ln.strip().endswith("|")]
-    if len(table_lines) < 4:
-        return {"passed": True, "reason": "No multi-row Markdown table in final response"}
-    viewed_files = []
+    sanitized_prose = _strip_inline_backtick_spans(last_prose)
+    table_lines = [
+        ln for ln in sanitized_prose.splitlines()
+        if ln.strip().startswith("|") and ln.strip().endswith("|")
+    ]
+    if len(table_lines) < 5:
+        return {
+            "passed": True,
+            "reason": "Below >= 5-row C9 table floor",
+            "table_row_count": len(table_lines),
+        }
+    viewed_files: List[str] = []
     for step in turn_steps:
         for tc in (step.get("tool_calls") or []):
-            if tc.get("name") == "view_file":
-                 viewed_files.append(str((tc.get("args") or {}).get("AbsolutePath", "")))
+            if not isinstance(tc, dict):
+                continue
+            tname = tc.get("name")
+            if tname in ("read_file", "view_file", "Read"):
+                targs = _decode_args(tc.get("args"))
+                p = str(targs.get("Path") or targs.get("AbsolutePath") or targs.get("file_path") or "")
+                viewed_files.append(p)
     return {
         "passed": len(viewed_files) > 0,
         "table_row_count": len(table_lines),
@@ -1256,38 +1497,43 @@ def check_c9_pre_prose_table_gate(turn_steps: List[Dict[str, Any]]) -> Dict[str,
 
 
 def check_chat_bottom_up_tldr_structure(response_text: str) -> Dict[str, Any]:
-    """
-    Chat Bottom-Up Pyramid Gate: Responses > 120 words must place '### ⚡ TL;DR' near the bottom
-    with <= 80 words and zero code blocks or Markdown tables below the TL;DR header.
-    """
+    """Chat Bottom-Up Pyramid Gate (`G3` inline-backtick safe)."""
     words = response_text.split()
     if len(words) <= 120:
         return {"passed": True, "exempt": True, "word_count": len(words)}
+    prose_no_fences = re.sub(r"```[\s\S]*?```", "", response_text)
+    prose_safe = _strip_inline_backtick_spans(prose_no_fences)
+    open_details = len(re.findall(r"<details\b[^>]*>", prose_safe, flags=re.IGNORECASE))
+    close_details = len(re.findall(r"</details>", prose_safe, flags=re.IGNORECASE))
+    details_balanced = open_details == close_details
     m = re.search(r"^###\s+⚡\s+TL;DR\b", response_text, flags=re.MULTILINE)
     if not m:
-        return {"passed": False, "reason": "Missing '### ⚡ TL;DR' bottom section on response > 120 words"}
+        return {
+            "passed": False,
+            "reason": "Missing '### ⚡ TL;DR' bottom section on response > 120 words",
+            "details_balanced": details_balanced,
+        }
     tail = response_text[m.end():]
     tail_clean = re.sub(r"`?CRITIC_VERDICT:.*$", "", tail, flags=re.MULTILINE).strip()
     has_code_below = "```" in tail_clean
+    tail_safe = _strip_inline_backtick_spans(tail_clean)
     has_table_below = any(
         ln.strip().startswith("|") and ln.strip().endswith("|")
-        for ln in tail_clean.splitlines()
+        for ln in tail_safe.splitlines()
     )
     tldr_words = len(tail_clean.split())
-    passed = (not has_code_below) and (not has_table_below) and (tldr_words <= 95)
+    passed = details_balanced and (not has_code_below) and (not has_table_below) and (tldr_words <= 95)
     return {
         "passed": passed,
         "tldr_word_count": tldr_words,
         "has_code_below": has_code_below,
         "has_table_below": has_table_below,
+        "details_balanced": details_balanced,
     }
 
 
 def audit_git_diff_test_tampering(diff_text: str) -> Dict[str, Any]:
-    """
-    Scans a unified git diff for reward-hacking test tampering (deleted assert statements,
-    added @unittest.skip / pytest.mark.skip without replacement assertions).
-    """
+    """Scans a unified git diff for reward-hacking test tampering."""
     deleted_asserts = 0
     added_asserts = 0
     added_skips = 0
@@ -1321,11 +1567,7 @@ def verify_subagent_proof_freshness(transcript_path: str, turn_start_epoch: floa
 
 
 def detect_orphaned_background_tasks(turn_steps: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    C14f Orphaned Background-Task & Non-Daemon Cron Livelock Guard:
-    Scans turn steps for non-daemon background commands or unbounded recurring cron schedules
-    that were started without subsequent manage_task(Action='kill') cleanup.
-    """
+    """C14f Orphaned Background-Task & Non-Daemon Cron Livelock Guard."""
     unbounded_crons: List[str] = []
     background_cmds: List[str] = []
     killed_tasks: int = 0
@@ -1364,10 +1606,7 @@ def detect_orphaned_background_tasks(turn_steps: List[Dict[str, Any]]) -> Dict[s
 def format_compact_subagent_wakeup(
     summary_text: str, detail_path: str = "", max_bytes: int = 800
 ) -> Dict[str, Any]:
-    """
-    C14g Subagent Return Payload Cap (< 800 B):
-    Ensures subagent wakeup messages remain below max_bytes while referencing detail_path on disk.
-    """
+    """C14g Subagent Return Payload Cap (< 800 B)."""
     raw_bytes = len(summary_text.encode("utf-8"))
     if raw_bytes <= max_bytes:
         return {
@@ -1388,11 +1627,7 @@ def format_compact_subagent_wakeup(
 
 
 def enforce_shebang_exec_and_inmemory_compile(file_paths: List[str]) -> Dict[str, Any]:
-    """
-    AGW-W12-08 (`LL-2`): Sets `0o755` (`st_mode | 0o111`) strictly on files starting with `#!`,
-    clears accidental executable bits on non-shebang `.md`/`.json`/`.txt` files, and validates
-    `.py` files via in-memory `compile(source, path, 'exec')` with zero `__pycache__` disk writes.
-    """
+    """AGW-W12-08 (`LL-2`): Sets `0o755` strictly on `#!` files and validates `.py` via in-memory `compile()`."""
     chmod_exec: List[str] = []
     chmod_cleared: List[str] = []
     compile_errors: List[str] = []
@@ -1429,10 +1664,7 @@ def enforce_shebang_exec_and_inmemory_compile(file_paths: List[str]) -> Dict[str
 
 
 def has_post_mutation_local_test_proof(turn_steps: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    AGW-W12-13 (`NONDEV-BUG-7`): Scans all tool calls and tool results at or after the last
-    file mutation step for a passing local test execution (`pytest`, `unittest`, `--self-test`).
-    """
+    """AGW-W12-13 (`NONDEV-BUG-7`): Scans for passing local test execution at or after last file mutation."""
     last_mut_idx = -1
     for idx, step in enumerate(turn_steps or []):
         for tc in step.get("tool_calls") or []:
@@ -1446,8 +1678,8 @@ def has_post_mutation_local_test_proof(turn_steps: List[Dict[str, Any]]) -> Dict
     scan_slice = (turn_steps or [])[max(0, last_mut_idx) :]
     for step in scan_slice:
         for tc in step.get("tool_calls") or []:
-            if isinstance(tc, dict) and tc.get("name") == "run_command":
-                cmd = str(_decode_args(tc.get("args")).get("CommandLine") or "")
+            if isinstance(tc, dict) and tc.get("name") in ("run_command", "Bash", "bash"):
+                cmd = str(_decode_args(tc.get("args")).get("CommandLine") or _decode_args(tc.get("args")).get("command") or "")
                 if test_cmd_re.search(cmd):
                     matched_commands.append(cmd[:120])
         content = str(step.get("content") or "")

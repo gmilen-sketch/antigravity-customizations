@@ -31,6 +31,21 @@
       "_meta": {
         "antigravity/alwaysLoad": true
       }
+    },
+    "cloud_telemetry": {
+      "command": "python3",
+      "disabled": false,
+      "args": [
+        "-B",
+        "${PLUGIN_ROOT}/src/mcp_servers/cloud_telemetry_mcp.py"
+      ],
+      "env": {
+        "PLUGIN_ROOT": "${PLUGIN_ROOT}",
+        "PLUGIN_DATA": "${PLUGIN_DATA}"
+      },
+      "_meta": {
+        "antigravity/alwaysLoad": true
+      }
     }
   }
 }

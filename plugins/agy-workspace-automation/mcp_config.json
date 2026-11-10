@@ -28,6 +28,36 @@
       "_meta": {
         "antigravity/alwaysLoad": true
       }
+    },
+    "browser_cdp": {
+      "command": "python3",
+      "disabled": false,
+      "args": [
+        "-B",
+        "${PLUGIN_ROOT}/src/mcp_servers/browser_cdp_mcp.py"
+      ],
+      "env": {
+        "PLUGIN_ROOT": "${PLUGIN_ROOT}",
+        "PLUGIN_DATA": "${PLUGIN_DATA}"
+      },
+      "_meta": {
+        "antigravity/alwaysLoad": true
+      }
+    },
+    "workspace_docs": {
+      "command": "python3",
+      "disabled": false,
+      "args": [
+        "-B",
+        "${PLUGIN_ROOT}/src/mcp_servers/workspace_docs_mcp.py"
+      ],
+      "env": {
+        "PLUGIN_ROOT": "${PLUGIN_ROOT}",
+        "PLUGIN_DATA": "${PLUGIN_DATA}"
+      },
+      "_meta": {
+        "antigravity/alwaysLoad": true
+      }
     }
   }
 }

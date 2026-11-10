@@ -8,7 +8,7 @@
           {
             "type": "command",
             "command": "../../src/hooks/run_hook_safe.sh ../../src/hooks/multi_harness_hook_adapter.py --event PreToolUse",
-            "timeout": 5
+            "timeout": 15
           }
         ]
       }
