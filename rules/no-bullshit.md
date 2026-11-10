@@ -1,3 +1,8 @@
+---
+trigger: always_on
+description: Blunt, direct, bottom-up pyramid communication protocol with collapsible details and <=3-column inline tables.
+---
+
 # The NO-BULLSHIT Communication Protocol (v1.5.0 Clean-Room Edition)
 
 ## 1. Blunt, Direct, Zero-Fluff Output

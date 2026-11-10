@@ -1,6 +1,6 @@
 # Antigravity Customizations Suite (v1.5.0)
 
-**Release:** `v1.5.0` · **Tests:** `33/33 Passing` · **Scope:** `7 Primitives + 4 Domain Packs` · **License:** [MIT](LICENSE)
+**Release:** `v1.5.0` · **Tests:** `34/34 Passing` · **Scope:** `7 Primitives + 4 Domain Packs` · **License:** [MIT](LICENSE)
 
 **Quick Links:** [Copy-Paste Prompt](#-option-0-copy-paste-prompt-for-your-agent-harness) · [All Prompts](DEPLOY_PROMPT.md) · [4 Domain Packs](#-all-in-one-plugin-role-bundle--4-modular-domain-plugin-packs) · [Included Components](#-what-is-included-v150--v390-clean-room-sync--wave-12-upgrades) · [Skills & Subagents](AGENT_DIRECTORY.md) · [Workflows & MCPs](WORKFLOW_DIRECTORY.md) · [Architecture](ARCHITECTURE.md)
 
@@ -49,7 +49,10 @@ prompts, safely backing up and reviewing any pre-existing user customizations:
 # Install directly via native Antigravity plugin manager:
 agy plugin install .
 
-# Or install the full plugin bundle + 4 domain packs and verify:
+# Or install isolated plugin bundles + 4 domain packs and verify:
+./scripts/install.sh --target agy --plugin-only --verify
+
+# Or install full plugin + standalone harness copies and verify:
 ./scripts/install.sh --target agy --verify
 
 # Clean-slate uninstall (restores backed-up rules and removes plugin_data):

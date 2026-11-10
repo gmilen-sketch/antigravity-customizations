@@ -5,7 +5,7 @@
       "disabled": false,
       "args": [
         "-B",
-        "${PLUGIN_ROOT}/src/knowledge_graph/kg_mcp_server.py"
+        "${PLUGIN_ROOT}/../../src/knowledge_graph/kg_mcp_server.py"
       ],
       "env": {
         "PLUGIN_ROOT": "${PLUGIN_ROOT}",

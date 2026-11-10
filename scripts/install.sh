@@ -19,6 +19,7 @@ TARGET="all"
 DEST_HOME="${HOME}"
 DRY_RUN="false"
 RUN_VERIFY="false"
+PLUGIN_ONLY="false"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -38,8 +39,12 @@ while [[ $# -gt 0 ]]; do
             RUN_VERIFY="true"
             shift 1
             ;;
+        --plugin-only)
+            PLUGIN_ONLY="true"
+            shift 1
+            ;;
         -h|--help)
-            echo "Usage: ./scripts/install.sh [--target all|agy|antigravity|claude-code|cursor|cloud-code] [--home <dir>] [--dry-run] [--verify]"
+            echo "Usage: ./scripts/install.sh [--target all|agy|antigravity|claude-code|cursor|cloud-code] [--home <dir>] [--plugin-only] [--dry-run] [--verify]"
             exit 0
             ;;
         *)
@@ -65,34 +70,94 @@ install_agy() {
     echo "[2/4] Installing Unified v1.5.0 Plugin Bundle, Role Bundle & 4 Modular Packs into Antigravity (${DEST_HOME}/.gemini/config)..."
     [[ "$DRY_RUN" == "true" ]] && return 0
     local PLUGIN_DEST="${DEST_HOME}/.gemini/config/plugins/antigravity-customizations"
-    mkdir -p "${DEST_HOME}/.gemini/config/plugins" "${PLUGIN_DEST}" "${DEST_HOME}/.gemini/antigravity/bin" "${DEST_HOME}/kb" "${DEST_HOME}/.gemini/skills" "${DEST_HOME}/.gemini/agents"
-    cp -r "${REPO_ROOT}/skills" "${DEST_HOME}/.gemini/config/"
-    cp -r "${REPO_ROOT}/agents" "${DEST_HOME}/.gemini/config/"
-    cp -r "${REPO_ROOT}/rules" "${DEST_HOME}/.gemini/config/"
-    cp -r "${REPO_ROOT}/skills/"* "${DEST_HOME}/.gemini/skills/" 2>/dev/null || true
-    cp -r "${REPO_ROOT}/agents/"* "${DEST_HOME}/.gemini/agents/" 2>/dev/null || true
+    mkdir -p "${DEST_HOME}/.gemini/config/plugins" "${PLUGIN_DEST}" "${DEST_HOME}/.gemini/antigravity/bin" "${DEST_HOME}/kb"
     cp -r "${REPO_ROOT}/kb/"* "${DEST_HOME}/kb/" 2>/dev/null || true
     mkdir -p "${DEST_HOME}/.gemini/antigravity/kb" "${DEST_HOME}/.gemini/antigravity/bin/kb" "${DEST_HOME}/.gemini/antigravity/sidecars"
     cp -r "${REPO_ROOT}/kb/"* "${DEST_HOME}/.gemini/antigravity/kb/" 2>/dev/null || true
     cp -r "${REPO_ROOT}/kb/"* "${DEST_HOME}/.gemini/antigravity/bin/kb/" 2>/dev/null || true
     cp -r "${REPO_ROOT}/sidecars/"* "${DEST_HOME}/.gemini/antigravity/sidecars/" 2>/dev/null || true
 
-    # Populate full native plugin bundle under ~/.gemini/config/plugins/antigravity-customizations/
-    for item in VERSION AGENT_DIRECTORY.md WORKFLOW_DIRECTORY.md plugin.json plugins.json sidecars.json agents.json skills.json rules.json hooks.json mcp_config.json assets resources skills agents rules sidecars src kb _agents; do
+    # Populate full self-contained native plugin bundle under ~/.gemini/config/plugins/antigravity-customizations/
+    for item in VERSION README.md LICENSE AGENT_DIRECTORY.md WORKFLOW_DIRECTORY.md plugin.json sidecars.json agents.json skills.json rules.json hooks.json mcp_config.json assets resources skills agents rules sidecars src kb _agents; do
+        [[ -e "${REPO_ROOT}/${item}" ]] || continue
         rm -rf "${PLUGIN_DEST:?}/${item}"
         cp -r "${REPO_ROOT}/${item}" "${PLUGIN_DEST}/${item}"
     done
 
-    # Also install modular domain plugins under ~/.gemini/config/plugins/
-    if [[ -d "${REPO_ROOT}/plugins" ]]; then
-        for mod_plugin in "${REPO_ROOT}/plugins/"*; do
-            [[ -d "$mod_plugin" ]] || continue
-            local mod_name
-            mod_name="$(basename "$mod_plugin")"
-            rm -rf "${DEST_HOME}/.gemini/config/plugins/${mod_name}"
-            cp -r "$mod_plugin" "${DEST_HOME}/.gemini/config/plugins/${mod_name}"
-        done
-    fi
+    # Materialize all 4 modular domain plugins under ~/.gemini/config/plugins/ as 100% self-contained bundles
+    REPO_ROOT="${REPO_ROOT}" PLUGINS_INSTALL_ROOT="${DEST_HOME}/.gemini/config/plugins" PYTHONDONTWRITEBYTECODE=1 python3 -B - << 'PYMOD'
+import json, os, pathlib, re, shutil
+
+repo = pathlib.Path(os.environ["REPO_ROOT"])
+dest_root = pathlib.Path(os.environ["PLUGINS_INSTALL_ROOT"])
+src_plugins = repo / "plugins"
+
+skill_name_to_dir = {}
+for sdir in (repo / "skills").iterdir():
+    if sdir.is_dir() and (sdir / "SKILL.md").is_file():
+        txt = (sdir / "SKILL.md").read_text(encoding="utf-8")
+        m = re.search(r"^name:\s*([A-Za-z0-9_-]+)", txt, flags=re.MULTILINE)
+        sname = m.group(1) if m else sdir.name.replace("_", "-")
+        skill_name_to_dir[sname] = sdir
+        skill_name_to_dir[sdir.name] = sdir
+
+if src_plugins.is_dir():
+    for mod in sorted(src_plugins.iterdir()):
+        if not mod.is_dir():
+            continue
+        target = dest_root / mod.name
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(mod, target)
+        for shared in ("VERSION", "LICENSE", "src", "resources", "kb"):
+            s_path = repo / shared
+            if s_path.is_dir():
+                shutil.copytree(s_path, target / shared, dirs_exist_ok=True)
+            elif s_path.is_file():
+                shutil.copy2(s_path, target / shared)
+
+        if (target / "mcp_config.json").is_file():
+            mtxt = (target / "mcp_config.json").read_text(encoding="utf-8")
+            (target / "mcp_config.json").write_text(mtxt.replace("${PLUGIN_ROOT}/../../src/", "${PLUGIN_ROOT}/src/"), encoding="utf-8")
+
+        if (target / "hooks.json").is_file():
+            htxt = (target / "hooks.json").read_text(encoding="utf-8")
+            (target / "hooks.json").write_text(htxt.replace("../../src/hooks/", "./src/hooks/"), encoding="utf-8")
+
+        if (target / "skills.json").is_file():
+            sdata = json.loads((target / "skills.json").read_text(encoding="utf-8"))
+            inc = set(sdata.get("entries", [{}])[0].get("include_only", []))
+            (target / "skills").mkdir(parents=True, exist_ok=True)
+            for sname in sorted(inc):
+                sdir = skill_name_to_dir.get(sname)
+                if sdir and sdir.is_dir():
+                    shutil.copytree(sdir, target / "skills" / sdir.name, dirs_exist_ok=True)
+            sdata["entries"][0]["path"] = "skills"
+            (target / "skills.json").write_text(json.dumps(sdata, indent=2) + "\n", encoding="utf-8")
+
+        if (target / "agents.json").is_file():
+            adata = json.loads((target / "agents.json").read_text(encoding="utf-8"))
+            inc = set(adata.get("entries", [{}])[0].get("include_only", []))
+            (target / "agents").mkdir(parents=True, exist_ok=True)
+            for aname in sorted(inc):
+                adir = repo / "agents" / aname
+                if adir.is_dir():
+                    shutil.copytree(adir, target / "agents" / aname, dirs_exist_ok=True)
+            adata["entries"][0]["path"] = "agents"
+            (target / "agents.json").write_text(json.dumps(adata, indent=2) + "\n", encoding="utf-8")
+
+        if (target / "rules.json").is_file():
+            shutil.copytree(repo / "rules", target / "rules", dirs_exist_ok=True)
+            rdata = json.loads((target / "rules.json").read_text(encoding="utf-8"))
+            rdata["entries"][0]["path"] = "rules"
+            (target / "rules.json").write_text(json.dumps(rdata, indent=2) + "\n", encoding="utf-8")
+
+        if (target / "sidecars.json").is_file():
+            shutil.copytree(repo / "sidecars", target / "sidecars", dirs_exist_ok=True)
+            scdata = json.loads((target / "sidecars.json").read_text(encoding="utf-8"))
+            scdata["entries"][0]["path"] = "sidecars"
+            (target / "sidecars.json").write_text(json.dumps(scdata, indent=2) + "\n", encoding="utf-8")
+PYMOD
 
     for mod in autonomy_engine knowledge_graph hooks diagram_renderer mcp_google_workspace mcp_node_stub mcp_servers playwright_scraper six_hats_evaluator; do
         rm -rf "${DEST_HOME}/.gemini/antigravity/bin/${mod}"
@@ -101,10 +166,19 @@ install_agy() {
     done
     cp "${REPO_ROOT}/src/mcp_deep_research.py" "${DEST_HOME}/.gemini/antigravity/bin/mcp_deep_research.py"
     chmod +x "${DEST_HOME}/.gemini/antigravity/bin/mcp_deep_research.py" 2>/dev/null || true
-    sed "s|\./src/hooks/|${REPO_ROOT}/src/hooks/|g" "${REPO_ROOT}/hooks.json" > "${DEST_HOME}/.gemini/config/hooks.json"
-    sed "s|\./src/hooks/|${REPO_ROOT}/src/hooks/|g" "${REPO_ROOT}/hooks.json" > "${DEST_HOME}/.gemini/antigravity/hooks.json"
-    sed 's|${PLUGIN_ROOT}|'"${REPO_ROOT}"'|g' "${REPO_ROOT}/mcp_config.json" > "${DEST_HOME}/.gemini/antigravity/mcp_config.json"
-    sed 's|${PLUGIN_ROOT}|'"${REPO_ROOT}"'|g' "${REPO_ROOT}/mcp_config.json" > "${DEST_HOME}/.gemini/config/mcp_config.json"
+    sed "s|\./src/hooks/|${PLUGIN_DEST}/src/hooks/|g" "${REPO_ROOT}/hooks.json" > "${DEST_HOME}/.gemini/antigravity/hooks.json"
+    sed 's|${PLUGIN_ROOT}|'"${PLUGIN_DEST}"'|g' "${REPO_ROOT}/mcp_config.json" > "${DEST_HOME}/.gemini/antigravity/mcp_config.json"
+
+    if [[ "$PLUGIN_ONLY" != "true" ]]; then
+        mkdir -p "${DEST_HOME}/.gemini/skills" "${DEST_HOME}/.gemini/agents"
+        cp -r "${REPO_ROOT}/skills" "${DEST_HOME}/.gemini/config/"
+        cp -r "${REPO_ROOT}/agents" "${DEST_HOME}/.gemini/config/"
+        cp -r "${REPO_ROOT}/rules" "${DEST_HOME}/.gemini/config/"
+        cp -r "${REPO_ROOT}/skills/"* "${DEST_HOME}/.gemini/skills/" 2>/dev/null || true
+        cp -r "${REPO_ROOT}/agents/"* "${DEST_HOME}/.gemini/agents/" 2>/dev/null || true
+        sed "s|\./src/hooks/|${PLUGIN_DEST}/src/hooks/|g" "${REPO_ROOT}/hooks.json" > "${DEST_HOME}/.gemini/config/hooks.json"
+        sed 's|${PLUGIN_ROOT}|'"${PLUGIN_DEST}"'|g' "${REPO_ROOT}/mcp_config.json" > "${DEST_HOME}/.gemini/config/mcp_config.json"
+    fi
 
     # Enable PluginUserConfig in ~/.gemini/config/config.json without clobbering existing user keys
     DEST_CFG="${DEST_HOME}/.gemini/config/config.json" PYTHONDONTWRITEBYTECODE=1 python3 -B - << 'PYCFG' || true
@@ -190,18 +264,32 @@ import sys
 dest_home = pathlib.Path(os.environ["DEST_HOME"])
 repo_root = pathlib.Path(os.environ["REPO_ROOT"])
 plugin_dir = dest_home / ".gemini" / "config" / "plugins" / "antigravity-customizations"
+mod_names = ("agy-core-governance", "agy-knowledge-graph", "agy-cloud-architect", "agy-workspace-automation")
+
+self_contained_ok = (plugin_dir / "plugin.json").is_file() and (plugin_dir / "README.md").is_file()
+for mp in mod_names:
+    mdir = dest_home / ".gemini" / "config" / "plugins" / mp
+    if not (mdir / "plugin.json").is_file() or not (mdir / "assets" / "logo.svg").is_file():
+        self_contained_ok = False
+    for jf in mdir.glob("*.json"):
+        if "../../" in jf.read_text(encoding="utf-8"):
+            self_contained_ok = False
+
+hooks_target = dest_home / ".gemini" / "config" / "hooks.json"
+if not hooks_target.is_file():
+    hooks_target = plugin_dir / "hooks.json"
+mcp_target = dest_home / ".gemini" / "config" / "mcp_config.json"
+if not mcp_target.is_file():
+    mcp_target = plugin_dir / "mcp_config.json"
 
 checks = {
-    "1_plugin_and_4_modular_packs": (plugin_dir / "plugin.json").is_file() and all(
-        (dest_home / ".gemini" / "config" / "plugins" / p / "plugin.json").is_file()
-        for p in ("agy-core-governance", "agy-knowledge-graph", "agy-cloud-architect", "agy-workspace-automation")
-    ),
+    "1_plugin_and_4_modular_packs": self_contained_ok,
     "2_bitemporal_knowledge_graph": (dest_home / ".gemini" / "antigravity" / "knowledge_graph.json").is_file(),
-    "3_twotier_20_pdq_skills": len(json.loads((repo_root / "skills.json").read_text(encoding="utf-8")).get("skills", [])) == 20,
-    "4_five_custom_subagents": len(json.loads((repo_root / "agents.json").read_text(encoding="utf-8")).get("agents", [])) == 5,
-    "5_three_arm_b_rules": len(json.loads((repo_root / "rules.json").read_text(encoding="utf-8")).get("rules", [])) == 3,
-    "6_parsehooks_lifecycle_hooks": len(json.loads((dest_home / ".gemini" / "config" / "hooks.json").read_text(encoding="utf-8"))) >= 3,
-    "7_ten_eager_mcps_and_3_sidecars": len(json.loads((dest_home / ".gemini" / "config" / "mcp_config.json").read_text(encoding="utf-8")).get("mcpServers", {})) >= 10,
+    "3_twotier_20_pdq_skills": len(json.loads((plugin_dir / "skills.json").read_text(encoding="utf-8")).get("skills", [])) == 20,
+    "4_five_custom_subagents": len(json.loads((plugin_dir / "agents.json").read_text(encoding="utf-8")).get("agents", [])) == 5,
+    "5_three_arm_b_rules": len(json.loads((plugin_dir / "rules.json").read_text(encoding="utf-8")).get("rules", [])) == 3,
+    "6_parsehooks_lifecycle_hooks": len(json.loads(hooks_target.read_text(encoding="utf-8"))) >= 3,
+    "7_ten_eager_mcps_and_3_sidecars": len(json.loads(mcp_target.read_text(encoding="utf-8")).get("mcpServers", {})) >= 10,
     "8_legacy_customizations_review_manifest": (dest_home / ".gemini" / "antigravity" / "plugin_data" / "antigravity-customizations" / "LEGACY_CUSTOMIZATIONS_REVIEW.md").is_file(),
 }
 

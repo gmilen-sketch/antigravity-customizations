@@ -4,7 +4,7 @@
       "command": "node",
       "disabled": false,
       "args": [
-        "${PLUGIN_ROOT}/src/mcp_google_workspace/index.js"
+        "${PLUGIN_ROOT}/../../src/mcp_google_workspace/index.js"
       ],
       "env": {
         "PLUGIN_ROOT": "${PLUGIN_ROOT}",
@@ -19,7 +19,7 @@
       "disabled": false,
       "args": [
         "-B",
-        "${PLUGIN_ROOT}/src/playwright_scraper/playwright_mcp_server.py"
+        "${PLUGIN_ROOT}/../../src/playwright_scraper/playwright_mcp_server.py"
       ],
       "env": {
         "PLUGIN_ROOT": "${PLUGIN_ROOT}",
@@ -34,7 +34,7 @@
       "disabled": false,
       "args": [
         "-B",
-        "${PLUGIN_ROOT}/src/mcp_servers/browser_cdp_mcp.py"
+        "${PLUGIN_ROOT}/../../src/mcp_servers/browser_cdp_mcp.py"
       ],
       "env": {
         "PLUGIN_ROOT": "${PLUGIN_ROOT}",
@@ -49,7 +49,7 @@
       "disabled": false,
       "args": [
         "-B",
-        "${PLUGIN_ROOT}/src/mcp_servers/workspace_docs_mcp.py"
+        "${PLUGIN_ROOT}/../../src/mcp_servers/workspace_docs_mcp.py"
       ],
       "env": {
         "PLUGIN_ROOT": "${PLUGIN_ROOT}",

@@ -5,7 +5,7 @@
       "disabled": false,
       "args": [
         "-B",
-        "${PLUGIN_ROOT}/src/diagram_renderer/diagram_mcp_server.py"
+        "${PLUGIN_ROOT}/../../src/diagram_renderer/diagram_mcp_server.py"
       ],
       "env": {
         "PLUGIN_ROOT": "${PLUGIN_ROOT}",
@@ -20,7 +20,7 @@
       "disabled": false,
       "args": [
         "-B",
-        "${PLUGIN_ROOT}/src/mcp_deep_research.py",
+        "${PLUGIN_ROOT}/../../src/mcp_deep_research.py",
         "--transport",
         "stdio"
       ],
@@ -37,7 +37,7 @@
       "disabled": false,
       "args": [
         "-B",
-        "${PLUGIN_ROOT}/src/mcp_servers/cloud_telemetry_mcp.py"
+        "${PLUGIN_ROOT}/../../src/mcp_servers/cloud_telemetry_mcp.py"
       ],
       "env": {
         "PLUGIN_ROOT": "${PLUGIN_ROOT}",

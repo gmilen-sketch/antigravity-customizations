@@ -26,10 +26,16 @@ def compute_status_payload() -> dict:
     plugins_dir = REPO_ROOT / "plugins"
     plugin_packs = sum(1 for p in plugins_dir.glob("*/plugin.json")) if plugins_dir.is_dir() else 4
     kb_dir = REPO_ROOT / "kb"
-    kg_entities = sum(1 for p in kb_dir.rglob("*.md")) if kb_dir.is_dir() else 6
+    kg_entities = (
+        sum(1 for p in kb_dir.rglob("*.md") if p.name not in ("index.md", "log.md"))
+        if kb_dir.is_dir()
+        else 0
+    )
+    ver_file = REPO_ROOT / "VERSION"
+    ver = ver_file.read_text(encoding="utf-8").strip() if ver_file.is_file() else "1.5.0"
     return {
         "status": "ok",
-        "version": "1.5.0",
+        "version": ver,
         "skill_count": skill_count,
         "subagent_count": 5,
         "mcp_server_count": 10,

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Antigravity Customizations Suite — Clean-Slate Uninstaller (v1.4.0)
+# Antigravity Customizations Suite — Clean-Slate Uninstaller (v1.5.0)
 # Removes installed plugin bundles, modular domain packs, and plugin_data state,
 # restores backed-up standalone rules from legacy_standalone_backup/, and calls
 # the local Language Server state endpoint if active.
@@ -65,4 +65,4 @@ if [[ "$DRY_RUN" == "false" ]]; then
     done
 fi
 
-echo "✅ Antigravity Customizations Suite v1.4.0 uninstalled cleanly (vanilla clean slate verified)!"
+echo "✅ Antigravity Customizations Suite v1.5.0 uninstalled cleanly (vanilla clean slate verified)!"

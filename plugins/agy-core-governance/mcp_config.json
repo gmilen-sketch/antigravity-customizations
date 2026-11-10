@@ -5,7 +5,7 @@
       "disabled": false,
       "args": [
         "-B",
-        "${PLUGIN_ROOT}/src/autonomy_engine/mcp_autonomy_hub.py"
+        "${PLUGIN_ROOT}/../../src/autonomy_engine/mcp_autonomy_hub.py"
       ],
       "env": {
         "PLUGIN_ROOT": "${PLUGIN_ROOT}",
@@ -20,7 +20,7 @@
       "disabled": false,
       "args": [
         "-B",
-        "${PLUGIN_ROOT}/src/six_hats_evaluator/six_hats_mcp_server.py"
+        "${PLUGIN_ROOT}/../../src/six_hats_evaluator/six_hats_mcp_server.py"
       ],
       "env": {
         "PLUGIN_ROOT": "${PLUGIN_ROOT}",

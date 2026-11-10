@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "../../src/hooks/run_hook_safe.sh ../../src/hooks/multi_harness_hook_adapter.py --event PreToolUse",
+            "command": "/bin/sh ../../src/hooks/run_hook_safe.sh ../../src/hooks/multi_harness_hook_adapter.py --event PreToolUse",
             "timeout": 15
           }
         ]
@@ -19,14 +19,14 @@
     "PostInvocation": [
       {
         "type": "command",
-        "command": "../../src/hooks/run_hook_safe.sh ../../src/hooks/multi_harness_hook_adapter.py --event PostInvocation",
+        "command": "/bin/sh ../../src/hooks/run_hook_safe.sh ../../src/hooks/multi_harness_hook_adapter.py --event PostInvocation",
         "timeout": 10
       }
     ],
     "Stop": [
       {
         "type": "command",
-        "command": "../../src/hooks/run_hook_safe.sh ../../src/hooks/multi_harness_hook_adapter.py --event Stop",
+        "command": "/bin/sh ../../src/hooks/run_hook_safe.sh ../../src/hooks/multi_harness_hook_adapter.py --event Stop",
         "timeout": 15
       }
     ]

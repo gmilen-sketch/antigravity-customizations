@@ -1,7 +1,7 @@
 {
   "$schema": "https://schemas.example.com/antigravity/schemas/v1/bundle.schema.json",
   "title": "Antigravity Enterprise Cloud Architect & Autonomy Bundle",
-  "description": "End-to-end Enterprise Cloud Architecture, FinOps, and Autonomous Engineering bundle: 20 PD-Q domain skills, 5 Black-Hat forensic verification subagents, 3 sidecars (AuxPane UI, CDC Watcher, Nightly Dreaming), 7 eager MCP servers, and 3 Sentinel governance rules.",
+  "description": "End-to-end Enterprise Cloud Architecture, FinOps, and Autonomous Engineering bundle: 20 PD-Q domain skills, 5 Black-Hat forensic verification subagents, 3 sidecars (AuxPane UI, CDC Watcher, Nightly Dreaming), 10 eager MCP servers, and 3 Sentinel governance rules.",
   "logo": "assets/logo.svg",
   "contact_email": "cloud-architecture-team@example.com",
   "issue_tracker_id": 1000001,

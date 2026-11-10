@@ -343,6 +343,68 @@ class TestV150V390SyncAndIpAudit(unittest.TestCase):
             for pat, desc in PROHIBITED_LEAK_PATTERNS:
                 self.assertIsNone(re.search(pat, text), f"{rel} matched prohibited pattern ({desc})")
 
+    def test_33_native_plugin_deployment_and_self_contained_packs(self):
+        """Verifies valid subagent commandExecutionPolicy, rule trigger frontmatter, local plugin logos, and --plugin-only self-contained install."""
+        judge_md = pathlib.Path(REPO_ROOT, "agents", "black-hat-judge", "agent.md").read_text(encoding="utf-8")
+        self.assertIn("commandExecutionPolicy: off", judge_md)
+        self.assertNotIn("commandExecutionPolicy: deny", judge_md)
+        self.assertEqual(list(pathlib.Path(REPO_ROOT, "agents").glob("*.md")), [])
+
+        nb_rule = pathlib.Path(REPO_ROOT, "rules", "no-bullshit.md").read_text(encoding="utf-8")
+        self.assertTrue(nb_rule.startswith("---\ntrigger: always_on\n"), "rules/no-bullshit.md requires trigger: always_on YAML frontmatter")
+
+        for mod in ("agy-core-governance", "agy-knowledge-graph", "agy-cloud-architect", "agy-workspace-automation"):
+            pdir = pathlib.Path(REPO_ROOT, "plugins", mod)
+            pjson = json.loads((pdir / "plugin.json").read_text(encoding="utf-8"))
+            self.assertEqual(pjson["logo"], "assets/logo.svg")
+            self.assertIs(pjson["disabled"], True)
+            self.assertTrue((pdir / "assets" / "logo.svg").is_file())
+            mcp_json = json.loads((pdir / "mcp_config.json").read_text(encoding="utf-8"))
+            for srv, cfg in mcp_json["mcpServers"].items():
+                script_args = [a for a in cfg["args"] if "${PLUGIN_ROOT}" in a]
+                self.assertGreaterEqual(len(script_args), 1, f"Missing PLUGIN_ROOT script arg on {mod}/{srv}")
+                resolved = pathlib.Path(script_args[0].replace("${PLUGIN_ROOT}", str(pdir))).resolve()
+                self.assertTrue(resolved.is_file(), f"Broken in-repo MCP path for {mod}/{srv}: {resolved}")
+
+        tmp_home = tempfile.mkdtemp()
+        try:
+            res = subprocess.run(
+                [
+                    "bash",
+                    os.path.join(REPO_ROOT, "scripts", "install.sh"),
+                    "--target",
+                    "agy",
+                    "--plugin-only",
+                    "--home",
+                    tmp_home,
+                    "--verify",
+                ],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "AGY_INSTALL_VERIFY_IN_PROGRESS": "1"},
+                check=True,
+            )
+            self.assertIn('"verdict": "PASS"', res.stdout)
+            self.assertFalse(pathlib.Path(tmp_home, ".gemini", "config", "hooks.json").exists())
+            self.assertFalse(pathlib.Path(tmp_home, ".gemini", "config", "mcp_config.json").exists())
+
+            plugins_dir = pathlib.Path(tmp_home, ".gemini", "config", "plugins")
+            for pname in ("antigravity-customizations", "agy-core-governance", "agy-knowledge-graph", "agy-cloud-architect", "agy-workspace-automation"):
+                inst = plugins_dir / pname
+                self.assertTrue((inst / "plugin.json").is_file())
+                self.assertTrue((inst / "assets" / "logo.svg").is_file())
+                for jf in inst.glob("*.json"):
+                    self.assertNotIn("../../", jf.read_text(encoding="utf-8"), f"Escaped relative path in installed {pname}/{jf.name}")
+                if (inst / "mcp_config.json").is_file():
+                    mdata = json.loads((inst / "mcp_config.json").read_text(encoding="utf-8"))
+                    for srv, cfg in mdata["mcpServers"].items():
+                        for arg in cfg["args"]:
+                            if "${PLUGIN_ROOT}" in arg:
+                                target_script = pathlib.Path(arg.replace("${PLUGIN_ROOT}", str(inst)))
+                                self.assertTrue(target_script.is_file(), f"Missing installed MCP script {target_script} in {pname}/{srv}")
+        finally:
+            shutil.rmtree(tmp_home, ignore_errors=True)
+
 
 if __name__ == "__main__":
     unittest.main()

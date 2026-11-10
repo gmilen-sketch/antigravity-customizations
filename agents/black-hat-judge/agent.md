@@ -8,7 +8,7 @@ hooks:
   - hooks.json
 mainAgent: false
 subagent: true
-commandExecutionPolicy: deny
+commandExecutionPolicy: off
 inheritCustomizations: false
 inheritMcp: false
 preloadSkills:

@@ -229,15 +229,16 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
             self.assertEqual(srv_cfg.get("env", {}).get("PLUGIN_DATA"), "${PLUGIN_DATA}")
 
     def test_08_subagent_skills_and_preload_skills_frontmatter(self):
-        """Verifies all 5 custom subagents include both native 'skills:' and 'preloadSkills:' frontmatter keys."""
+        """Verifies all 5 custom subagents use nested agents/<name>/agent.md without duplicate flat shadowing and include 'skills:' + 'preloadSkills:'."""
         nested_agents = list(pathlib.Path(REPO_ROOT, "agents").glob("*/agent.md"))
         flat_agents = list(pathlib.Path(REPO_ROOT, "agents").glob("*.md"))
         self.assertEqual(len(nested_agents), 5)
-        self.assertEqual(len(flat_agents), 5)
-        for ag_md in nested_agents + flat_agents:
+        self.assertEqual(flat_agents, [], "Duplicate flat agents/*.md must be absent so agents/*/agent.md and agents/*/hooks.json are never shadowed")
+        for ag_md in nested_agents:
             txt = ag_md.read_text(encoding="utf-8")
             self.assertIn("preloadSkills:", txt, f"Missing preloadSkills in {ag_md}")
             self.assertIn("\nskills:\n", txt, f"Missing native skills: key in {ag_md}")
+            self.assertNotIn("commandExecutionPolicy: deny", txt, f"Invalid commandExecutionPolicy 'deny' in {ag_md} (must be off/auto/turbo)")
 
     def test_09_p0_p1_quality_engines_and_saboteur_benchmark(self):
         """Verifies P0 (CB-1..CB-7), P1 (P1-CB-1..P1-CB-7), and 8-Mutant Saboteur self-tests."""
