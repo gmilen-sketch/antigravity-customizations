@@ -18,26 +18,15 @@ sys.dont_write_bytecode = True
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _PARENT = os.path.dirname(_HERE)
 for _cand in (
+    _HERE,
+    _PARENT,
     os.path.join(_PARENT, "mcp_google_workspace"),
     os.path.expanduser("~/.gemini/antigravity/bin/mcp_google_workspace"),
 ):
     if os.path.isdir(_cand) and _cand not in sys.path:
         sys.path.insert(0, _cand)
 
-try:
-    from fastmcp import FastMCP
-except ImportError:
-    class FastMCP:  # type: ignore[no-redef]
-        def __init__(self, name: str = "", **kwargs):
-            self.name = name
-
-        def tool(self, *args, **kwargs):
-            def decorator(fn):
-                return fn
-            return decorator
-
-        def run(self, *args, **kwargs):
-            pass
+from stdio_fastmcp_compat import FastMCP
 
 from agent_ssot_formatter import (
     build_3row_sheet_staging_diff as _diff_helper,

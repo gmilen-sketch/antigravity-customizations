@@ -7,20 +7,13 @@ Exposes tools for compiling Mermaid and GCP Draw text diagrams into BENTO PNG/SV
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_SRC = os.path.dirname(_HERE)
+for _p in (_HERE, _SRC):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
-try:
-    from fastmcp import FastMCP
-except ImportError:
-    class FastMCP:
-        def __init__(self, name):
-            self.name = name
-        def tool(self):
-            def decorator(f):
-                return f
-            return decorator
-        def run(self, *args, **kwargs):
-            print(f"FastMCP server {self.name} initialized.")
+from mcp_servers.stdio_fastmcp_compat import FastMCP
 
 from render_mermaid import render_mermaid_to_png, compile_markdown_diagrams
 from render_gcp_draw import render_gcp_draw_to_svg

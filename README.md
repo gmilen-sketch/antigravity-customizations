@@ -1,6 +1,6 @@
 # Antigravity Customizations Suite (v1.5.0)
 
-**Release:** `v1.5.0` · **Tests:** `34/34 Passing` · **Scope:** `7 Primitives + 4 Domain Packs` · **License:** [MIT](LICENSE)
+**Release:** `v1.5.0` · **Tests:** `35/35 Passing` · **Scope:** `7 Primitives + 4 Domain Packs` · **License:** [MIT](LICENSE)
 
 **Quick Links:** [Copy-Paste Prompt](#-option-0-copy-paste-prompt-for-your-agent-harness) · [All Prompts](DEPLOY_PROMPT.md) · [4 Domain Packs](#-all-in-one-plugin-role-bundle--4-modular-domain-plugin-packs) · [Included Components](#-what-is-included-v150--v390-clean-room-sync--wave-12-upgrades) · [Skills & Subagents](AGENT_DIRECTORY.md) · [Workflows & MCPs](WORKFLOW_DIRECTORY.md) · [Architecture](ARCHITECTURE.md)
 

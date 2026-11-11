@@ -21,11 +21,25 @@ import logging
 import os
 import re
 import socket
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from html.parser import HTMLParser
 from typing import Any, Literal
 from urllib.parse import parse_qs, unquote, urlparse
 
-import httpx
+sys.dont_write_bytecode = True
+_SRC_ROOT = os.path.dirname(os.path.abspath(__file__))
+if _SRC_ROOT not in sys.path:
+    sys.path.insert(0, _SRC_ROOT)
+
+try:
+    import httpx  # type: ignore[import-not-found]
+    _HAVE_HTTPX = True
+except ImportError:
+    httpx = None  # type: ignore[assignment]
+    _HAVE_HTTPX = False
 
 try:
     import google.auth
@@ -34,20 +48,9 @@ try:
 except Exception:
     _HAVE_GOOGLE_AUTH = False
 
-try:
-    from fastmcp import FastMCP
-except ImportError:
-    class FastMCP:
-        def __init__(self, name="", **kwargs):
-            self.name = name
-        def tool(self, *args, **kwargs):
-            def decorator(f):
-                return f
-            return decorator
-        def run(self, *args, **kwargs):
-            pass
+from mcp_servers.stdio_fastmcp_compat import FastMCP
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 log = logging.getLogger("mcp_deep_research")
 
 # --- Config -----------------------------------------------------------------
@@ -215,29 +218,56 @@ def _html_to_text(html: str) -> str:
     return txt.strip()
 
 
+def _urllib_request_sync(
+    method: str,
+    url: str,
+    headers: dict[str, str] | None = None,
+    data: bytes | None = None,
+    timeout_s: float = FETCH_TIMEOUT_S,
+) -> tuple[int, dict[str, str], str]:
+    req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            status = int(getattr(resp, "status", 200))
+            hdrs = {k.lower(): v for k, v in resp.headers.items()}
+            body = resp.read().decode("utf-8", errors="replace")
+            return status, hdrs, body
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace") if exc.fp else str(exc)
+        hdrs = {k.lower(): v for k, v in exc.headers.items()} if exc.headers else {}
+        return int(exc.code), hdrs, body
+
+
 async def _fetch_url(url: str) -> str:
     ok, reason = _ssrf_safe(url)
     if not ok:
         return f"[fetch_url refused: {reason}]"
     try:
-        async with httpx.AsyncClient(
-            timeout=FETCH_TIMEOUT_S, follow_redirects=True,
-            headers={"User-Agent": BROWSER_UA, "Accept": "text/html,application/xhtml+xml"},
-        ) as cli:
-            r = await cli.get(url)
+        req_headers = {"User-Agent": BROWSER_UA, "Accept": "text/html,application/xhtml+xml"}
+        if _HAVE_HTTPX and httpx is not None:
+            async with httpx.AsyncClient(
+                timeout=FETCH_TIMEOUT_S, follow_redirects=True, headers=req_headers,
+            ) as cli:
+                r = await cli.get(url)
+                status_code = r.status_code
+                ctype = (r.headers.get("content-type") or "").lower()
+                body = r.text
+        else:
+            status_code, hdrs, body = await asyncio.to_thread(
+                _urllib_request_sync, "GET", url, req_headers, None, FETCH_TIMEOUT_S
+            )
+            ctype = (hdrs.get("content-type") or "").lower()
     except Exception as e:
         return f"[fetch_url error: {e}]"
-    ctype = (r.headers.get("content-type") or "").lower()
-    if r.status_code >= 400:
-        return f"[fetch_url HTTP {r.status_code} for {url}]"
-    body = r.text
+    if status_code >= 400:
+        return f"[fetch_url HTTP {status_code} for {url}]"
     if "html" in ctype or "xml" in ctype:
         body = _html_to_text(body)
     truncated = ""
     if len(body) > FETCH_MAX_CHARS:
         body = body[:FETCH_MAX_CHARS]
         truncated = f"\n\n[... truncated at {FETCH_MAX_CHARS} chars]"
-    return f"URL: {url}\nHTTP {r.status_code} {ctype}\n\n{body}{truncated}"
+    return f"URL: {url}\nHTTP {status_code} {ctype}\n\n{body}{truncated}"
 
 
 async def _web_search(query: str) -> str:
@@ -245,16 +275,28 @@ async def _web_search(query: str) -> str:
     if not q:
         return "[web_search: empty query]"
     try:
-        async with httpx.AsyncClient(
-            timeout=FETCH_TIMEOUT_S, follow_redirects=True,
-            headers={"User-Agent": BROWSER_UA},
-        ) as cli:
-            r = await cli.post("https://html.duckduckgo.com/html/", data={"q": q})
+        if _HAVE_HTTPX and httpx is not None:
+            async with httpx.AsyncClient(
+                timeout=FETCH_TIMEOUT_S, follow_redirects=True,
+                headers={"User-Agent": BROWSER_UA},
+            ) as cli:
+                r = await cli.post("https://html.duckduckgo.com/html/", data={"q": q})
+                status_code = r.status_code
+                html = r.text
+        else:
+            form_bytes = urllib.parse.urlencode({"q": q}).encode("utf-8")
+            status_code, _, html = await asyncio.to_thread(
+                _urllib_request_sync,
+                "POST",
+                "https://html.duckduckgo.com/html/",
+                {"User-Agent": BROWSER_UA, "Content-Type": "application/x-www-form-urlencoded"},
+                form_bytes,
+                FETCH_TIMEOUT_S,
+            )
     except Exception as e:
         return f"[web_search error: {e}]"
-    if r.status_code != 200:
-        return f"[web_search HTTP {r.status_code}]"
-    html = r.text
+    if status_code != 200:
+        return f"[web_search HTTP {status_code}]"
     result_pat = re.compile(
         r'<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>(.*?)</a>'
         r'.*?<a[^>]+class="[^"]*result__snippet[^"]*"[^>]*>(.*?)</a>',
@@ -315,11 +357,19 @@ async def _call_claude(messages: list, max_tokens: int, timeout_s: float = 180.0
         }
     else:
         raise RuntimeError("No auth: ADC unavailable and ANTHROPIC_API_KEY not set")
-    async with httpx.AsyncClient(timeout=timeout_s) as cli:
-        r = await cli.post(url, headers=hdrs, json=body)
-    if r.status_code != 200:
-        raise RuntimeError(f"Claude API {r.status_code}: {r.text[:400]}")
-    return r.json()
+    if _HAVE_HTTPX and httpx is not None:
+        async with httpx.AsyncClient(timeout=timeout_s) as cli:
+            r = await cli.post(url, headers=hdrs, json=body)
+        if r.status_code != 200:
+            raise RuntimeError(f"Claude API {r.status_code}: {r.text[:400]}")
+        return r.json()
+    raw_json = json.dumps(body).encode("utf-8")
+    status_code, _, resp_text = await asyncio.to_thread(
+        _urllib_request_sync, "POST", url, hdrs, raw_json, timeout_s
+    )
+    if status_code != 200:
+        raise RuntimeError(f"Claude API {status_code}: {resp_text[:400]}")
+    return json.loads(resp_text)
 
 
 async def _execute_tool(name: str, inp: dict) -> str:

@@ -12,6 +12,7 @@
 | [**sentinel_dispatch.py**](src/hooks/sentinel_dispatch.py) | `PreToolUse` | Enforces `force_ask` destructive/control-plane mediation, `GOLDFISH-RO-1` read-only subagent command guard, `L3` identical-command anti-spin, and retired model blocks. |
 | [**agent_stop_black_hat_gate.py**](src/hooks/agent_stop_black_hat_gate.py) | `Stop` | Enforces `v4.18` Adaptive `K=1..3` `[SHARD:<id>]` Multi-Goldfish -> Holistic Judge (`C6-Multi`/`C6-Holistic`) gate, `C3b` transcript mutation check, and `Case R` reactive unlock. |
 | [**black_hat_analyzer.py**](src/hooks/black_hat_analyzer.py) | CLI / Pre-Commit | Static AST, JSON, silent-fallback, UTF-8/binary extension, corporate token, and 95-digest SHA-256 clean-room IP verifier (`--target <dir>`). |
+| [**stdio_fastmcp_compat.py**](src/mcp_servers/stdio_fastmcp_compat.py) | All Python MCPs | Zero-dependency stdlib MCP JSON-RPC 2.0 `stdio` compatibility server when `fastmcp` is not pre-installed on customer machines. |
 | [**run_ab_benchmark.py**](scripts/run_ab_benchmark.py) | `--self-test` / CLI | Turnkey 28-task Paired Harness A/B Benchmark Orchestrator (`--mode dual-daemon` & `--mode harbor`) with Wilcoxon/McNemar statistics. |
 | [**test_customizations_suite.py**](tests/test_customizations_suite.py) | Unittest Suite | Hermetic clean-room suite across [test_customizations_suite.py](tests/test_customizations_suite.py), [test_v140_wave12_and_hooks.py](tests/test_v140_wave12_and_hooks.py), and [test_v150_v390_sync_and_ip_audit.py](tests/test_v150_v390_sync_and_ip_audit.py). |
 

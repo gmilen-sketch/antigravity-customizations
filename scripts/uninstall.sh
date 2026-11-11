@@ -54,6 +54,7 @@ if [[ "$DRY_RUN" == "false" ]]; then
         rm -rf "${DEST_HOME}/.gemini/config/plugins/${pdir}"
     done
     rm -rf "${DEST_HOME}/.gemini/antigravity/plugin_data/antigravity-customizations"
+    rm -rf "${DEST_HOME}/.agents/antigravity-runtime"
 fi
 
 echo "[3/3] Cleaning up empty customization directories..."

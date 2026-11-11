@@ -405,6 +405,123 @@ class TestV150V390SyncAndIpAudit(unittest.TestCase):
         finally:
             shutil.rmtree(tmp_home, ignore_errors=True)
 
+    def test_34_end_to_end_customer_plugin_runtime_all_primitives(self):
+        """Simulates a clean customer install (deleted clone, stripped +x bits, no fastmcp/httpx/node_modules) and verifies all 10 MCP stdio servers, hooks, skills, and multi-harness configs."""
+        tmp_root = tempfile.mkdtemp(prefix="agw_e2e_cust_")
+        try:
+            tmp_path = pathlib.Path(tmp_root)
+            clone_dir = tmp_path / "temp_clone"
+            shutil.copytree(
+                REPO_ROOT,
+                clone_dir,
+                ignore=shutil.ignore_patterns(".git", "node_modules", "__pycache__", "*.pyc"),
+            )
+            cust_home = tmp_path / "cust_home"
+            cust_home.mkdir()
+            base_env = {**os.environ, "HOME": str(cust_home), "PYTHONDONTWRITEBYTECODE": "1"}
+
+            subprocess.run(
+                ["bash", str(clone_dir / "scripts" / "install.sh"), "--target", "all", "--home", str(cust_home)],
+                env=base_env,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            # Delete temporary clone to prove installed hooks/MCPs never depend on transient download path
+            shutil.rmtree(clone_dir)
+
+            claude_cfg = json.loads((cust_home / ".claude" / "settings.json").read_text(encoding="utf-8"))
+            claude_hook_script = claude_cfg["hooks"]["PreToolUse"][0]["hooks"][0]["command"].split()[2]
+            self.assertTrue(os.path.isfile(claude_hook_script), f"Claude hook script missing after clone deletion: {claude_hook_script}")
+
+            cursor_cfg = json.loads((cust_home / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
+            for srv, scfg in cursor_cfg["mcpServers"].items():
+                script_arg = next(a for a in scfg["args"] if a.endswith((".py", ".js")))
+                self.assertTrue(os.path.isfile(script_arg), f"Cursor MCP script missing after clone deletion ({srv}): {script_arg}")
+
+            pdir = cust_home / ".gemini" / "config" / "plugins" / "antigravity-customizations"
+            for f in pdir.rglob("*"):
+                if f.is_file():
+                    f.chmod(0o644)
+
+            # Verify all root hooks & all 5 subagent hooks succeed even with 0644 file modes
+            root_hooks = json.loads((pdir / "hooks.json").read_text(encoding="utf-8"))
+            for grp in root_hooks.values():
+                if not isinstance(grp, dict):
+                    continue
+                for ev in ("PreInvocation", "PostInvocation", "PreToolUse", "Stop"):
+                    for item in grp.get(ev, []):
+                        for h in item.get("hooks", [item]):
+                            r = subprocess.run(
+                                ["/bin/sh", "-c", h["command"]],
+                                cwd=str(pdir),
+                                env=base_env,
+                                input=json.dumps({"hookEventName": ev, "conversationId": "c1", "toolName": "edit_file", "toolArgs": {"Path": "/tmp/t.txt", "Target": "a", "Replacement": "b"}}),
+                                text=True,
+                                capture_output=True,
+                                check=True,
+                            )
+                            self.assertIn("decision", json.loads(r.stdout))
+
+            for adir in sorted((pdir / "agents").iterdir()):
+                if not adir.is_dir():
+                    continue
+                ah = json.loads((adir / "hooks.json").read_text(encoding="utf-8"))
+                for grp in ah.values():
+                    if not isinstance(grp, dict):
+                        continue
+                    for ev in ("PreToolUse", "Stop"):
+                        for item in grp.get(ev, []):
+                            for h in item.get("hooks", [item]):
+                                r = subprocess.run(
+                                    ["/bin/sh", "-c", h["command"]],
+                                    cwd=str(adir),
+                                    env=base_env,
+                                    input=json.dumps({"hookEventName": ev, "conversationId": "sub1", "agentName": adir.name, "toolName": "run_command", "toolArgs": {"CommandLine": "ls /tmp"}}),
+                                    text=True,
+                                    capture_output=True,
+                                    check=True,
+                                )
+                                self.assertIn("decision", json.loads(r.stdout))
+
+            # Block optional 3P Python packages (`fastmcp`, `httpx`) to simulate a clean stock Python 3 customer host
+            block_site = tmp_path / "block_3p"
+            block_site.mkdir()
+            (block_site / "fastmcp.py").write_text("raise ImportError('no fastmcp')\n", encoding="utf-8")
+            (block_site / "httpx.py").write_text("raise ImportError('no httpx')\n", encoding="utf-8")
+
+            rpc_input = (
+                json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "audit", "version": "1.0"}}}) + "\n"
+                + json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}) + "\n"
+                + json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}) + "\n"
+            )
+            mcp_servers = json.loads((pdir / "mcp_config.json").read_text(encoding="utf-8"))["mcpServers"]
+            self.assertEqual(len(mcp_servers), 10)
+            for sname, scfg in mcp_servers.items():
+                cmd = [scfg["command"]] + [a.replace("${PLUGIN_ROOT}", str(pdir)) for a in scfg.get("args", [])]
+                s_env = {**base_env, "PYTHONPATH": str(block_site)}
+                for ek, ev in scfg.get("env", {}).items():
+                    s_env[ek] = ev.replace("${PLUGIN_ROOT}", str(pdir)).replace("${PLUGIN_DATA}", str(tmp_path / "pdata"))
+                proc = subprocess.run(cmd, cwd=str(pdir), env=s_env, input=rpc_input, text=True, capture_output=True, timeout=10, check=True)
+                json_lines = [json.loads(ln) for ln in proc.stdout.splitlines() if ln.strip()]
+                self.assertEqual(len(json_lines), 2, f"Expected 2 JSON-RPC replies (initialize + tools/list) from {sname}, got: {proc.stdout!r} stderr={proc.stderr!r}")
+                self.assertEqual(json_lines[0]["id"], 1)
+                self.assertIn("protocolVersion", json_lines[0]["result"])
+                tools = json_lines[1]["result"]["tools"]
+                self.assertGreaterEqual(len(tools), 1, f"MCP server {sname} exposed 0 tools")
+
+            # Verify all 20 skills + reference markdown relative links resolve cleanly
+            link_re = re.compile(r"\[[^\]]+\]\((?!https?://|mailto:|#|file://|customization://|sidecar://)([^)#\s]+)(?:#[^)]*)?\)")
+            for sdir in sorted((pdir / "skills").iterdir()):
+                if not sdir.is_dir():
+                    continue
+                md_files = [sdir / "SKILL.md"] + sorted((sdir / "references").glob("*.md") if (sdir / "references").is_dir() else [])
+                for mdf in md_files:
+                    for m in link_re.finditer(mdf.read_text(encoding="utf-8")):
+                        self.assertTrue((mdf.parent / m.group(1)).resolve().exists(), f"Broken link in {mdf}: {m.group(1)}")
+        finally:
+            shutil.rmtree(tmp_root, ignore_errors=True)
+
 
 if __name__ == "__main__":
     unittest.main()

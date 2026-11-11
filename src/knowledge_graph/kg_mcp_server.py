@@ -3,19 +3,13 @@ import os
 import sys
 import json
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-try:
-    from fastmcp import FastMCP
-except ImportError:
-    class FastMCP:
-        def __init__(self, name="", **kwargs):
-            self.name = name
-        def tool(self, *args, **kwargs):
-            def decorator(f):
-                return f
-            return decorator
-        def run(self, *args, **kwargs):
-            pass
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_SRC = os.path.dirname(_HERE)
+for _p in (_HERE, _SRC):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+from mcp_servers.stdio_fastmcp_compat import FastMCP
 from kg_engine import get_kg_engine
 
 EAGER_TOOL_META = {"antigravity/alwaysLoad": True}

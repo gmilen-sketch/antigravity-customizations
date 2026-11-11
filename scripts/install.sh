@@ -209,24 +209,39 @@ PYCFG
     fi
 }
 
+ensure_persistent_runtime() {
+    local RUNTIME_ROOT="${DEST_HOME}/.agents/antigravity-runtime"
+    mkdir -p "${RUNTIME_ROOT}"
+    for shared in VERSION LICENSE src resources kb; do
+        [[ -e "${REPO_ROOT}/${shared}" ]] || continue
+        rm -rf "${RUNTIME_ROOT:?}/${shared}"
+        cp -r "${REPO_ROOT}/${shared}" "${RUNTIME_ROOT}/${shared}"
+    done
+    chmod +x "${RUNTIME_ROOT}/src/hooks/"*.sh "${RUNTIME_ROOT}/src/hooks/"*.py 2>/dev/null || true
+}
+
 install_claude_code() {
     echo "[3/4] Installing into Claude Code (${DEST_HOME}/.claude)..."
     [[ "$DRY_RUN" == "true" ]] && return 0
+    ensure_persistent_runtime
+    local RUNTIME_SRC="${DEST_HOME}/.agents/antigravity-runtime/src"
     mkdir -p "${DEST_HOME}/.claude/agents" "${DEST_HOME}/.claude/commands"
     cp -r "${REPO_ROOT}/.claude/agents/"* "${DEST_HOME}/.claude/agents/"
     cp -r "${REPO_ROOT}/.claude/commands/"* "${DEST_HOME}/.claude/commands/"
     cp "${REPO_ROOT}/CLAUDE.md" "${DEST_HOME}/.claude/CLAUDE.md"
-    sed "s|src/hooks/|${REPO_ROOT}/src/hooks/|g" "${REPO_ROOT}/.claude/settings.json" > "${DEST_HOME}/.claude/settings.json"
+    sed "s|src/hooks/|${RUNTIME_SRC}/hooks/|g" "${REPO_ROOT}/.claude/settings.json" > "${DEST_HOME}/.claude/settings.json"
 }
 
 install_cursor_and_cloud_code() {
     echo "[4/4] Installing into Cursor / Windsurf / Cloud Code (${DEST_HOME}/.cursor & ${DEST_HOME}/.agents)..."
     [[ "$DRY_RUN" == "true" ]] && return 0
+    ensure_persistent_runtime
+    local RUNTIME_SRC="${DEST_HOME}/.agents/antigravity-runtime/src"
     mkdir -p "${DEST_HOME}/.cursor" "${DEST_HOME}/.agents"
     cp -r "${REPO_ROOT}/skills" "${DEST_HOME}/.agents/"
     cp -r "${REPO_ROOT}/agents" "${DEST_HOME}/.agents/"
     cp -r "${REPO_ROOT}/rules" "${DEST_HOME}/.agents/"
-    sed "s|\"src/|\"${REPO_ROOT}/src/|g" "${REPO_ROOT}/.mcp.json" > "${DEST_HOME}/.cursor/mcp.json"
+    sed "s|\"src/|\"${RUNTIME_SRC}/|g" "${REPO_ROOT}/.mcp.json" > "${DEST_HOME}/.cursor/mcp.json"
 }
 
 case "$TARGET" in

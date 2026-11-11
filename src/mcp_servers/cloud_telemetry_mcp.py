@@ -22,20 +22,13 @@ import urllib.request
 
 sys.dont_write_bytecode = True
 
-try:
-    from fastmcp import FastMCP
-except ImportError:
-    class FastMCP:  # type: ignore[no-redef]
-        def __init__(self, name: str = "", **kwargs):
-            self.name = name
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_PARENT = os.path.dirname(_HERE)
+for _p in (_HERE, _PARENT):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
-        def tool(self, *args, **kwargs):
-            def decorator(fn):
-                return fn
-            return decorator
-
-        def run(self, *args, **kwargs):
-            pass
+from stdio_fastmcp_compat import FastMCP
 
 EAGER_TOOL_META = {"antigravity/alwaysLoad": True}
 mcp = FastMCP("cloud_telemetry")

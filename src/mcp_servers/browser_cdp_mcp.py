@@ -19,26 +19,15 @@ sys.dont_write_bytecode = True
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _PARENT = os.path.dirname(_HERE)
 for _cand in (
+    _HERE,
+    _PARENT,
     os.path.join(_PARENT, "playwright_scraper"),
     os.path.expanduser("~/.gemini/antigravity/bin/playwright_scraper"),
 ):
     if os.path.isdir(_cand) and _cand not in sys.path:
         sys.path.insert(0, _cand)
 
-try:
-    from fastmcp import FastMCP
-except ImportError:
-    class FastMCP:  # type: ignore[no-redef]
-        def __init__(self, name: str = "", **kwargs):
-            self.name = name
-
-        def tool(self, *args, **kwargs):
-            def decorator(fn):
-                return fn
-            return decorator
-
-        def run(self, *args, **kwargs):
-            pass
+from stdio_fastmcp_compat import FastMCP
 
 EAGER_TOOL_META = {"antigravity/alwaysLoad": True}
 mcp = FastMCP("browser_cdp")

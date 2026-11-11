@@ -3,22 +3,18 @@
 FastMCP Server for Six Thinking Hats Reasoning in Antigravity Web Hub.
 """
 
+import os
 import sys
 import json
 import logging
 
-try:
-    from fastmcp import FastMCP
-except ImportError:
-    class FastMCP:
-        def __init__(self, name):
-            self.name = name
-        def tool(self):
-            def decorator(f):
-                return f
-            return decorator
-        def run(self):
-            print(f"FastMCP server {self.name} initialized.")
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_SRC = os.path.dirname(_HERE)
+for _p in (_HERE, _SRC):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+from mcp_servers.stdio_fastmcp_compat import FastMCP
 
 from six_hats import format_six_hats_prompt
 

@@ -3,20 +3,13 @@ import sys
 import os
 import json
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_SRC = os.path.dirname(_HERE)
+for _p in (_HERE, _SRC):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
-try:
-    from fastmcp import FastMCP
-except ImportError:
-    class FastMCP:
-        def __init__(self, name="", **kwargs):
-            self.name = name
-        def tool(self, *args, **kwargs):
-            def decorator(f):
-                return f
-            return decorator
-        def run(self, *args, **kwargs):
-            pass
+from mcp_servers.stdio_fastmcp_compat import FastMCP
 from aaak_compressor import AAAKCompressor
 from graph_memory import BitemporalKnowledgeGraph
 from polyphonic_retriever import PolyphonicRetriever
