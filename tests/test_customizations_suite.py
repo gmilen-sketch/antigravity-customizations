@@ -229,16 +229,32 @@ class TestAntigravityCustomizationsSuite(unittest.TestCase):
             self.assertEqual(srv_cfg.get("env", {}).get("PLUGIN_DATA"), "${PLUGIN_DATA}")
 
     def test_08_subagent_skills_and_preload_skills_frontmatter(self):
-        """Verifies all 5 custom subagents use nested agents/<name>/agent.md without duplicate flat shadowing and include 'skills:' + 'preloadSkills:'."""
-        nested_agents = list(pathlib.Path(REPO_ROOT, "agents").glob("*/agent.md"))
+        """Verifies all 5 custom subagents (Antigravity + Claude Code) use valid commandExecutionPolicy enums and include required frontmatter."""
+        nested_agents = sorted(pathlib.Path(REPO_ROOT, "agents").glob("*/agent.md"))
         flat_agents = list(pathlib.Path(REPO_ROOT, "agents").glob("*.md"))
+        claude_agents = sorted(pathlib.Path(REPO_ROOT, ".claude", "agents").glob("*.md"))
         self.assertEqual(len(nested_agents), 5)
+        self.assertEqual(len(claude_agents), 5)
         self.assertEqual(flat_agents, [], "Duplicate flat agents/*.md must be absent so agents/*/agent.md and agents/*/hooks.json are never shadowed")
+
+        valid_policies = {"off", "auto", "eager"}
         for ag_md in nested_agents:
             txt = ag_md.read_text(encoding="utf-8")
             self.assertIn("preloadSkills:", txt, f"Missing preloadSkills in {ag_md}")
             self.assertIn("\nskills:\n", txt, f"Missing native skills: key in {ag_md}")
-            self.assertNotIn("commandExecutionPolicy: deny", txt, f"Invalid commandExecutionPolicy 'deny' in {ag_md} (must be off/auto/turbo)")
+
+        for ag_md in nested_agents + claude_agents:
+            txt = ag_md.read_text(encoding="utf-8")
+            fm_match = re.match(r"^---\n(.*?)\n---\n", txt, re.DOTALL)
+            self.assertIsNotNone(fm_match, f"Missing YAML frontmatter in {ag_md}")
+            fm = fm_match.group(1)
+            pol_match = re.search(r"^commandExecutionPolicy:\s*(\S+)\s*$", fm, re.MULTILINE)
+            self.assertIsNotNone(pol_match, f"Missing commandExecutionPolicy in {ag_md}")
+            policy = pol_match.group(1).strip("\"'")
+            self.assertIn(policy, valid_policies, f"Invalid commandExecutionPolicy '{policy}' in {ag_md} (must be one of {sorted(valid_policies)})")
+            if "black-hat-judge" in str(ag_md):
+                self.assertEqual(policy, "off", f"black-hat-judge must set commandExecutionPolicy: off in {ag_md}")
+                self.assertIsNone(re.search(r"^\s*-\s*(?:run_command|Bash|bash)\s*$", fm, re.MULTILINE), f"black-hat-judge must omit shell tools in {ag_md}")
 
     def test_09_p0_p1_quality_engines_and_saboteur_benchmark(self):
         """Verifies P0 (CB-1..CB-7), P1 (P1-CB-1..P1-CB-7), and 8-Mutant Saboteur self-tests."""

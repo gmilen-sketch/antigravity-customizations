@@ -127,8 +127,29 @@ MUTATING_COMMAND_PATTERNS = [
     r"\bkubectl\s+(apply|delete|create|patch|scale)\b",
     r"\bterraform\s+(apply|destroy)\b",
     r"\b(diagram[-_]renderer|mmdc)\b",
-    r"(?<![>-])>>?\s*(?!/dev/null(?:\s|$|[;&|)]))[^\s|&]+",
+    r"(?<![0-9<>-])>>?(?![=>&])\s*(?!/dev/null(?:\s|$|[;&|)])|&[12]\b|['\"]?(?:/tmp/|/dev/shm/))[^\s|&;)]+",
 ]
+
+BENIGN_FD_REDIRECT_RE = re.compile(
+    r"(?:\b[12]?\s*>\s*/dev/null\b|\b[12]>\s*&[12]\b|&>\s*/dev/null\b)"
+)
+
+INLINE_PYTHON_EXEMPT_CALL_RE = re.compile(
+    r"""(?x)
+    \bopen\s*\(\s*[fFrRuU]*['"](?:/tmp/|/dev/shm/|[^'"]*/scratch/)[^'"]*['"]\s*,\s*['"][wa+][A-Za-z0-9+]*['"][^)]*\)
+    | \b(?:pathlib\.)?Path\s*\(\s*[fFrRuU]*['"](?:/tmp/|/dev/shm/|[^'"]*/scratch/)[^'"]*['"]\s*\)\s*\.\s*(?:write_text|write_bytes|unlink)\s*\(
+    | \bos\.(?:remove|unlink)\s*\(\s*[fFrRuU]*['"](?:/tmp/|/dev/shm/|[^'"]*/scratch/)[^'"]*['"]\s*\)
+    """
+)
+
+INLINE_PYTHON_WRITE_RE = re.compile(
+    r"""(?x)
+    \bopen\s*\([^)]*,\s*['"][wa+][A-Za-z0-9+]*['"]
+    | \.(?:write_text|write_bytes)\s*\(
+    | \bshutil\.(?:copy|copy2|copytree|move|rmtree)\s*\(
+    | \bos\.(?:remove|unlink|rename|replace)\s*\(
+    """
+)
 
 READONLY_MCP_PREFIXES = (
     "get_",
@@ -380,9 +401,74 @@ def is_exempt_target(target: str, artifact_dir: str) -> bool:
     return False
 
 
+def _strip_heredoc_and_quotes_fallback(cmd: str) -> str:
+    if not cmd:
+        return ""
+    lines = cmd.splitlines()
+    out_lines: List[str] = []
+    end_tag: Optional[str] = None
+    for ln in lines:
+        if end_tag is not None:
+            if ln.strip() == end_tag:
+                end_tag = None
+            continue
+        m = re.search(r"<<-?\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?", ln)
+        out_lines.append(re.sub(r"<<-?\s*['\"]?[A-Za-z_][A-Za-z0-9_]*['\"]?.*$", "", ln))
+        if m:
+            end_tag = m.group(1)
+    stripped = "\n".join(out_lines)
+    stripped = re.sub(r"'[^']*'", "''", stripped)
+    stripped = re.sub(r'"(?:[^"\\]|\\.)*"', '""', stripped)
+    return stripped
+
+
+def _extract_inline_python_payloads(command: str) -> str:
+    if not command:
+        return ""
+    extracted: List[str] = []
+    norm_cmd = (
+        command.replace("\\n", "\n").replace('\\"', '"')
+        if ("\n" not in command and "\\n" in command)
+        else command
+    )
+    for m in re.finditer(
+        r"(?ms)\bpython3?[^\n;|]*<<-?\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?[^\n]*\n(.*?)(?:\n\1\b|\Z)",
+        norm_cmd,
+    ):
+        extracted.append(m.group(2) or "")
+    for m in re.finditer(
+        r"(?s)\bpython3?\s+(?:-[A-Za-z0-9]+\s+)*-c\s+(?:'([^']*)'|\"((?:\\.|[^\"\\])*)\")",
+        norm_cmd,
+    ):
+        extracted.append(m.group(1) if m.group(1) is not None else (m.group(2) or ""))
+    return "\n".join(extracted)
+
+
 def is_mutating_command(command: str) -> bool:
+    if not command:
+        return False
+    try:
+        try:
+            from src.hooks.sentinel_dispatch import strip_heredoc_and_quoted_literals
+        except ImportError:
+            from sentinel_dispatch import strip_heredoc_and_quoted_literals  # type: ignore
+    except Exception:
+        strip_heredoc_and_quoted_literals = _strip_heredoc_and_quotes_fallback
+
+    norm_cmd = (
+        command.replace("\\n", "\n").replace('\\"', '"')
+        if ("\n" not in command and "\\n" in command)
+        else command
+    )
+    shell_surface = BENIGN_FD_REDIRECT_RE.sub(" ", strip_heredoc_and_quoted_literals(norm_cmd))
     for pattern in MUTATING_COMMAND_PATTERNS:
-        if re.search(pattern, command, re.IGNORECASE):
+        if re.search(pattern, shell_surface, re.IGNORECASE):
+            return True
+
+    inline_py = _extract_inline_python_payloads(norm_cmd)
+    if inline_py:
+        cleaned_py = INLINE_PYTHON_EXEMPT_CALL_RE.sub("", inline_py)
+        if INLINE_PYTHON_WRITE_RE.search(cleaned_py):
             return True
     return False
 
@@ -901,7 +987,7 @@ def resolve_active_goldfish_wave(
     if not goldfish_spawns:
         return []
     last_gf_step = goldfish_spawns[-1][0]
-    prior_judges = [j[0] for j in judge_spawns if j[0] < last_gf_step]
+    prior_judges = [j[0] for j in judge_spawns if j[2] and j[0] < last_gf_step]
     wave_floor = (max(prior_judges) + 1) if prior_judges else 0
     post_floor = [g for g in goldfish_spawns if g[0] >= wave_floor]
     if not post_floor:
@@ -926,6 +1012,69 @@ def resolve_active_goldfish_wave(
     return [g for g in post_floor if g[0] == last_gf_step]
 
 
+def _validate_active_goldfish_wave(
+    active_wave: List[Tuple[int, str, Optional[str], bool, Optional[str]]],
+    min_wave_idx: int,
+) -> Tuple[bool, str, List[str]]:
+    wave_cids: List[str] = []
+    for g_idx, g_prompt, g_cid, g_restricted, g_shard in active_wave:
+        shard_lbl = f" [SHARD:{g_shard}]" if g_shard else ""
+        if g_restricted:
+            return (
+                False,
+                f"goldfish{shard_lbl} prompt restricted independent command execution ('read_file only' / 'do not run commands' is prohibited)",
+                [],
+            )
+        spin_hit = detect_goldfish_spin(g_prompt)
+        if spin_hit:
+            return (
+                False,
+                f"goldfish{shard_lbl} prompt contains prohibited spin/excuse framing ({spin_hit!r}); pass de-contextualized claims, paths, and commands only",
+                [],
+            )
+        if not g_cid:
+            return False, f"black-hat-goldfish{shard_lbl} invoked at step {g_idx} without a resolved conversationId", []
+        gf_ok, gf_detail = read_goldfish_dossier(g_cid)
+        if not gf_ok:
+            return False, f"{gf_detail}{shard_lbl}", []
+        if g_cid not in wave_cids:
+            wave_cids.append(g_cid)
+    return True, "", wave_cids
+
+
+def _evaluate_critic_spawns(
+    critic_spawns: List[Tuple[int, str, Optional[str], bool, Optional[str]]],
+    min_step_after: int = -1,
+) -> Tuple[bool, str, int]:
+    scoped = [c for c in critic_spawns if c[0] > min_step_after]
+    if not scoped:
+        return False, "no independent verification executed in this turn", -1
+
+    spawn_pairs = [(idx, cid) for idx, _, cid, restricted, _ in scoped if cid and not restricted]
+    restricted_prompt_detected = any(restricted for _, _, _, restricted, _ in scoped)
+    if not spawn_pairs and restricted_prompt_detected:
+        return (
+            False,
+            "critic prompt restricted independent command execution ('read_file only' / 'do not run commands' is prohibited)",
+            -1,
+        )
+    if not spawn_pairs:
+        return False, "critic subagent invoked without a resolved conversation id", -1
+
+    seen_cids: List[Tuple[int, str]] = []
+    for s_idx, s_cid in spawn_pairs:
+        if s_cid not in {c for _, c in seen_cids}:
+            seen_cids.append((s_idx, s_cid))
+    for s_idx, s_cid in reversed(seen_cids):
+        verdict, detail = read_subagent_verdict(s_cid)
+        if verdict == "APPROVED":
+            return True, detail, s_idx
+        if verdict == "REJECTED":
+            return False, detail, s_idx
+    _, last_detail = read_subagent_verdict(seen_cids[-1][1])
+    return False, last_detail or "critic produced no verdict", seen_cids[-1][0]
+
+
 def find_goldfish_judge_proof(
     goldfish_spawns: List[Tuple[int, str, Optional[str], bool, Optional[str]]],
     judge_spawns: List[Tuple[int, str, Optional[str], bool, Optional[str]]],
@@ -942,29 +1091,9 @@ def find_goldfish_judge_proof(
     min_wave_idx = min(g[0] for g in active_wave)
     max_wave_idx = max(g[0] for g in active_wave)
 
-    wave_cids: List[str] = []
-    for g_idx, g_prompt, g_cid, g_restricted, g_shard in active_wave:
-        shard_lbl = f" [SHARD:{g_shard}]" if g_shard else ""
-        if g_restricted:
-            return (
-                False,
-                f"goldfish{shard_lbl} prompt restricted independent command execution ('read_file only' / 'do not run commands' is prohibited)",
-                min_wave_idx,
-            )
-        spin_hit = detect_goldfish_spin(g_prompt)
-        if spin_hit:
-            return (
-                False,
-                f"goldfish{shard_lbl} prompt contains prohibited spin/excuse framing ({spin_hit!r}); pass de-contextualized claims, paths, and commands only",
-                min_wave_idx,
-            )
-        if not g_cid:
-            return False, f"black-hat-goldfish{shard_lbl} invoked at step {g_idx} without a resolved conversationId", min_wave_idx
-        gf_ok, gf_detail = read_goldfish_dossier(g_cid)
-        if not gf_ok:
-            return False, f"{gf_detail}{shard_lbl}", min_wave_idx
-        if g_cid not in wave_cids:
-            wave_cids.append(g_cid)
+    wave_ok, wave_err, wave_cids = _validate_active_goldfish_wave(active_wave, min_wave_idx)
+    if not wave_ok:
+        return False, wave_err, min_wave_idx
 
     if not judge_spawns:
         return (
@@ -974,7 +1103,11 @@ def find_goldfish_judge_proof(
             min_wave_idx,
         )
 
-    j_idx, _j_prompt, j_cid, _j_restricted, _j_shard = judge_spawns[-1]
+    post_wave_judges = [j for j in judge_spawns if j[0] > max_wave_idx]
+    resolved_post_wave_judges = [j for j in post_wave_judges if j[2]]
+    selected_judge = resolved_post_wave_judges[-1] if resolved_post_wave_judges else judge_spawns[-1]
+
+    j_idx, _j_prompt, j_cid, _j_restricted, _j_shard = selected_judge
     if j_idx <= max_wave_idx:
         if any(g[0] < j_idx for g in goldfish_spawns):
             return (
@@ -1007,39 +1140,42 @@ def find_structural_proof(turn: List[Dict[str, Any]]) -> Tuple[bool, str]:
 def find_structural_proof_with_index(turn: List[Dict[str, Any]]) -> Tuple[bool, str, int]:
     goldfish_spawns = _extract_subagent_spawns(turn, GOLDFISH_AGENT_NAME)
     judge_spawns = _extract_subagent_spawns(turn, JUDGE_AGENT_NAME)
-    if goldfish_spawns or judge_spawns:
-        return find_goldfish_judge_proof(goldfish_spawns, judge_spawns)
+    strict_two_stage = os.environ.get("BH_GATE_STRICT_TWO_STAGE") == "1"
 
-    if os.environ.get("BH_GATE_STRICT_TWO_STAGE") == "1":
+    if goldfish_spawns or judge_spawns:
+        gj_ok, gj_detail, min_wave_idx = find_goldfish_judge_proof(goldfish_spawns, judge_spawns)
+        if gj_ok or strict_two_stage:
+            return gj_ok, gj_detail, min_wave_idx
+
+        critic_spawns = _extract_subagent_spawns(turn, CRITIC_AGENT_NAME)
+        if goldfish_spawns and critic_spawns:
+            active_wave = resolve_active_goldfish_wave(goldfish_spawns, judge_spawns)
+            w_min = min(g[0] for g in active_wave)
+            w_max = max(g[0] for g in active_wave)
+            wave_ok, _wave_err, wave_cids = _validate_active_goldfish_wave(active_wave, w_min)
+            has_resolved_post_wave_judge = any(bool(j[2]) for j in judge_spawns if j[0] > w_max)
+            if wave_ok and not has_resolved_post_wave_judge:
+                c_ok, c_detail, _c_idx = _evaluate_critic_spawns(critic_spawns, min_step_after=w_max)
+                if c_ok:
+                    wave_lbl = ",".join(c[:8] for c in wave_cids)
+                    return (
+                        True,
+                        f"Stage-1 goldfish ({wave_lbl}) + fallback {c_detail}",
+                        w_min,
+                    )
+        elif not goldfish_spawns and critic_spawns and all(not j[2] for j in judge_spawns):
+            max_aborted_j = max((j[0] for j in judge_spawns), default=-1)
+            c_ok, c_detail, c_idx = _evaluate_critic_spawns(critic_spawns, min_step_after=max_aborted_j)
+            if c_ok:
+                return True, c_detail, c_idx
+
+        return gj_ok, gj_detail, min_wave_idx
+
+    if strict_two_stage:
         return False, "no 2-stage black-hat-goldfish -> black-hat-judge verification executed in this turn", -1
 
     critic_spawns = _extract_subagent_spawns(turn, CRITIC_AGENT_NAME)
-    if not critic_spawns:
-        return False, "no independent verification executed in this turn", -1
-
-    spawn_pairs = [(idx, cid) for idx, _, cid, restricted, _ in critic_spawns if cid and not restricted]
-    restricted_prompt_detected = any(restricted for _, _, _, restricted, _ in critic_spawns)
-    if not spawn_pairs and restricted_prompt_detected:
-        return (
-            False,
-            "critic prompt restricted independent command execution ('read_file only' / 'do not run commands' is prohibited)",
-            -1,
-        )
-    if not spawn_pairs:
-        return False, "critic subagent invoked without a resolved conversation id", -1
-
-    seen_cids: List[Tuple[int, str]] = []
-    for s_idx, s_cid in spawn_pairs:
-        if s_cid not in {c for _, c in seen_cids}:
-            seen_cids.append((s_idx, s_cid))
-    for s_idx, s_cid in reversed(seen_cids):
-        verdict, detail = read_subagent_verdict(s_cid)
-        if verdict == "APPROVED":
-            return True, detail, s_idx
-        if verdict == "REJECTED":
-            return False, detail, s_idx
-    _, last_detail = read_subagent_verdict(seen_cids[-1][1])
-    return False, last_detail or "critic produced no verdict", seen_cids[-1][0]
+    return _evaluate_critic_spawns(critic_spawns)
 
 
 def extract_pre_critic_response(turn: List[Dict[str, Any]]) -> str:

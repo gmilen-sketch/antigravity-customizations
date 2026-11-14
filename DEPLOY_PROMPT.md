@@ -126,4 +126,4 @@ When **Prompt 1** completes, your agent will output a verification summary match
 | [**rules.json**](rules.json) (`3` Arm B Rules) | [GEMINI.md](rules/GEMINI.md), [AGENTS.md](rules/AGENTS.md), and [no-bullshit.md](rules/no-bullshit.md) (`< 7 KB` total budget) active | ✅ |
 | [**hooks.json**](hooks.json) (`ParseHooks`) | `sentinel-policy-guard`, `knowledge-graph-grounding`, and `black-hat-completion-gate` active | ✅ |
 | [**mcp_config.json**](mcp_config.json) & [**sidecars.json**](sidecars.json) | `10` Eager MCP servers (`alwaysLoad: true`) + `3` zero-permission sidecars ready | ✅ |
-| [**test_customizations_suite.py**](tests/test_customizations_suite.py) | All `34/34` clean-room, Wave-12, Dreaming, and plugin deployment tests pass | ✅ |
+| [**test_customizations_suite.py**](tests/test_customizations_suite.py) | All `36/36` clean-room, Wave-12, Dreaming, and plugin deployment tests pass | ✅ |

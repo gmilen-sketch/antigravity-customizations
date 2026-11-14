@@ -522,6 +522,176 @@ class TestV150V390SyncAndIpAudit(unittest.TestCase):
         finally:
             shutil.rmtree(tmp_root, ignore_errors=True)
 
+    def test_35_issue2_stop_gate_heredoc_and_critic_fallback_matrix(self):
+        """Verifies Issue #2 fixes: heredoc/quote/FD/scratch-safe is_mutating_command + inline-Python write detection, unresolved Judge wave boundaries, and fail-closed black-hat-critic fallback."""
+        import hooks.agent_stop_black_hat_gate as bh_gate
+
+        # 1. Read-only inline Python heredocs, quotes, FD redirects, and /tmp or /dev/shm scratch writes
+        self.assertFalse(bh_gate.is_mutating_command("python3 -B -c \"x = 5; print(x > 2)\""))
+        self.assertFalse(
+            bh_gate.is_mutating_command(
+                "python3 -B << 'PYEOF'\nvals = [3, 1, 4]\nprint([v for v in vals if v > 2])\nPYEOF"
+            )
+        )
+        self.assertFalse(bh_gate.is_mutating_command("echo \"a > b\" && pytest -q 2>&1"))
+        self.assertFalse(bh_gate.is_mutating_command("ls -la 2>/dev/null"))
+        self.assertFalse(bh_gate.is_mutating_command("echo ok > /tmp/probe.txt"))
+        self.assertFalse(bh_gate.is_mutating_command("echo ok > /dev/shm/probe.txt"))
+        self.assertFalse(bh_gate.is_mutating_command("python3 -B -c \"open('/tmp/s.txt', 'w').write('ok')\""))
+        self.assertFalse(
+            bh_gate.is_mutating_command(
+                "python3 -B << 'PYEOF'\nimport pathlib\npathlib.Path('/dev/shm/s.txt').write_text('ok')\nPYEOF"
+            )
+        )
+
+        # 2. True-positive shell redirects & inline Python durable writes remain fail-closed
+        self.assertTrue(bh_gate.is_mutating_command("echo mutated > /workspace/out.txt"))
+        self.assertTrue(bh_gate.is_mutating_command("python3 -B -c \"open('src/out.py', 'w').write('x')\""))
+        self.assertTrue(
+            bh_gate.is_mutating_command(
+                "python3 -B << 'PYEOF'\nimport pathlib\npathlib.Path('README.md').write_text('x')\nPYEOF"
+            )
+        )
+
+        # 3. resolve_active_goldfish_wave ignores aborted Judge spawns with cid=None
+        gf_spawns = [
+            (1, "[SHARD:code] check code", "11111111-1111-1111-1111-111111111111", False, "code"),
+            (3, "[SHARD:tests] check tests", "22222222-2222-2222-2222-222222222222", False, "tests"),
+        ]
+        aborted_judge = [(2, "adjudicate", None, False, None)]
+        wave = bh_gate.resolve_active_goldfish_wave(gf_spawns, aborted_judge)
+        self.assertEqual({w[4] for w in wave}, {"code", "tests"})
+
+        # 4. Full fallback & fail-closed matrix in find_structural_proof_with_index
+        tmp_brain = tempfile.mkdtemp(prefix="agw_bh_brain_")
+        orig_roots = list(bh_gate.BRAIN_CANDIDATE_ROOTS)
+        orig_strict = os.environ.get("BH_GATE_STRICT_TWO_STAGE")
+        try:
+            bh_gate.BRAIN_CANDIDATE_ROOTS[:] = [tmp_brain]
+            os.environ.pop("BH_GATE_STRICT_TWO_STAGE", None)
+
+            def _write_transcript(cid: str, lines: list) -> str:
+                log_dir = pathlib.Path(tmp_brain, cid, ".system_generated", "logs")
+                log_dir.mkdir(parents=True, exist_ok=True)
+                tpath = log_dir / "transcript_full.jsonl"
+                tpath.write_text("\n".join(json.dumps(x) for x in lines) + "\n", encoding="utf-8")
+                return str(tpath)
+
+            gf_clean_cid = "aaaaaaaa-1111-4111-8111-111111111111"
+            gf_disc_cid = "bbbbbbbb-2222-4222-8222-222222222222"
+            gf_mut_cid = "cccccccc-3333-4333-8333-333333333333"
+            critic_ok_cid = "dddddddd-4444-4444-8444-444444444444"
+            judge_rej_cid = "eeeeeeee-5555-4555-8555-555555555555"
+
+            gf_clean_path = _write_transcript(
+                gf_clean_cid,
+                [
+                    {"type": "PLANNER_RESPONSE", "content": "Inspecting", "tool_calls": [{"name": "read_file", "args": {"Path": "/tmp/a"}}, {"name": "run_command", "args": {"CommandLine": "pytest -q"}}]},
+                    {"type": "PLANNER_RESPONSE", "content": "FORENSIC_EVIDENCE_DOSSIER\nDISCREPANCY_COUNT: 0"},
+                ],
+            )
+            _write_transcript(
+                gf_disc_cid,
+                [
+                    {"type": "PLANNER_RESPONSE", "content": "Inspecting", "tool_calls": [{"name": "read_file", "args": {"Path": "/tmp/a"}}, {"name": "run_command", "args": {"CommandLine": "pytest -q"}}]},
+                    {"type": "PLANNER_RESPONSE", "content": "FORENSIC_EVIDENCE_DOSSIER\nDISCREPANCY_COUNT: 1"},
+                ],
+            )
+            _write_transcript(
+                gf_mut_cid,
+                [
+                    {"type": "PLANNER_RESPONSE", "content": "Mutating", "tool_calls": [{"name": "write_file", "args": {"Path": "/workspace/bad.py"}}, {"name": "read_file", "args": {"Path": "/tmp/a"}}]},
+                    {"type": "PLANNER_RESPONSE", "content": "FORENSIC_EVIDENCE_DOSSIER\nDISCREPANCY_COUNT: 0"},
+                ],
+            )
+            _write_transcript(
+                critic_ok_cid,
+                [
+                    {"type": "PLANNER_RESPONSE", "content": "Auditing", "tool_calls": [{"name": "read_file", "args": {"Path": "/tmp/a"}}]},
+                    {"type": "PLANNER_RESPONSE", "content": "Running suite", "tool_calls": [{"name": "run_command", "args": {"CommandLine": "pytest -q"}}]},
+                    {"type": "PLANNER_RESPONSE", "content": "All checks verified.\nCRITIC_VERDICT: APPROVED"},
+                ],
+            )
+            _write_transcript(
+                judge_rej_cid,
+                [
+                    {"type": "PLANNER_RESPONSE", "content": "Reading dossier", "tool_calls": [{"name": "read_file", "args": {"Path": gf_clean_path}}]},
+                    {"type": "PLANNER_RESPONSE", "content": "MITM_LAUNDERING: DETECTED\nCRITIC_VERDICT: REJECTED"},
+                ],
+            )
+
+            # Case A: Clean Goldfish + unresolved Judge dispatch (cid=None) + post-wave Critic APPROVED -> PASS
+            turn_unresolved_judge = [
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "invoke_subagent", "args": {"TypeName": "black-hat-goldfish", "Prompt": "Verify claims"}}]},
+                {"type": "TOOL_RESULT", "content": f"conversationId: {gf_clean_cid}"},
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "invoke_subagent", "args": {"TypeName": "black-hat-judge", "Prompt": "Adjudicate"}}]},
+                {"type": "TOOL_RESULT", "content": "Error: unknown subagent black-hat-judge"},
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "invoke_subagent", "args": {"TypeName": "black-hat-critic", "Prompt": "Fallback audit"}}]},
+                {"type": "TOOL_RESULT", "content": f"conversationId: {critic_ok_cid}"},
+            ]
+            ok, detail, w_idx = bh_gate.find_structural_proof_with_index(turn_unresolved_judge)
+            self.assertTrue(ok, f"Expected fallback PASS, got: {detail}")
+            self.assertEqual(w_idx, 0)
+
+            # Case B: Strict 2-stage mode blocks Critic fallback
+            os.environ["BH_GATE_STRICT_TWO_STAGE"] = "1"
+            ok_strict, _, _ = bh_gate.find_structural_proof_with_index(turn_unresolved_judge)
+            self.assertFalse(ok_strict)
+            os.environ.pop("BH_GATE_STRICT_TWO_STAGE", None)
+
+            # Case C: Goldfish DISCREPANCY_COUNT > 0 blocks Critic fallback
+            turn_gf_disc = [
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "invoke_subagent", "args": {"TypeName": "black-hat-goldfish", "Prompt": "Verify claims"}}]},
+                {"type": "TOOL_RESULT", "content": f"conversationId: {gf_disc_cid}"},
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "invoke_subagent", "args": {"TypeName": "black-hat-critic", "Prompt": "Fallback audit"}}]},
+                {"type": "TOOL_RESULT", "content": f"conversationId: {critic_ok_cid}"},
+            ]
+            self.assertFalse(bh_gate.find_structural_proof_with_index(turn_gf_disc)[0])
+
+            # Case D: Goldfish GOLDFISH-RO-1 mutation or handcuff prompt blocks Critic fallback
+            turn_gf_mut = [
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "invoke_subagent", "args": {"TypeName": "black-hat-goldfish", "Prompt": "Verify claims"}}]},
+                {"type": "TOOL_RESULT", "content": f"conversationId: {gf_mut_cid}"},
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "invoke_subagent", "args": {"TypeName": "black-hat-critic", "Prompt": "Fallback audit"}}]},
+                {"type": "TOOL_RESULT", "content": f"conversationId: {critic_ok_cid}"},
+            ]
+            self.assertFalse(bh_gate.find_structural_proof_with_index(turn_gf_mut)[0])
+
+            turn_gf_handcuff = [
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "invoke_subagent", "args": {"TypeName": "black-hat-goldfish", "Prompt": "Use read_file only"}}]},
+                {"type": "TOOL_RESULT", "content": f"conversationId: {gf_clean_cid}"},
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "invoke_subagent", "args": {"TypeName": "black-hat-critic", "Prompt": "Fallback audit"}}]},
+                {"type": "TOOL_RESULT", "content": f"conversationId: {critic_ok_cid}"},
+            ]
+            self.assertFalse(bh_gate.find_structural_proof_with_index(turn_gf_handcuff)[0])
+
+            # Case E: Critic executed prior to active Goldfish wave cannot clear gate
+            turn_pre_wave_critic = [
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "invoke_subagent", "args": {"TypeName": "black-hat-critic", "Prompt": "Early audit"}}]},
+                {"type": "TOOL_RESULT", "content": f"conversationId: {critic_ok_cid}"},
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "invoke_subagent", "args": {"TypeName": "black-hat-goldfish", "Prompt": "Verify claims"}}]},
+                {"type": "TOOL_RESULT", "content": f"conversationId: {gf_clean_cid}"},
+            ]
+            self.assertFalse(bh_gate.find_structural_proof_with_index(turn_pre_wave_critic)[0])
+
+            # Case F: Resolved post-wave Judge REJECTED / MITM_LAUNDERING blocks Critic fallback
+            turn_judge_rej = [
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "invoke_subagent", "args": {"TypeName": "black-hat-goldfish", "Prompt": "Verify claims"}}]},
+                {"type": "TOOL_RESULT", "content": f"conversationId: {gf_clean_cid}"},
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "invoke_subagent", "args": {"TypeName": "black-hat-judge", "Prompt": "Adjudicate"}}]},
+                {"type": "TOOL_RESULT", "content": f"conversationId: {judge_rej_cid}"},
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "invoke_subagent", "args": {"TypeName": "black-hat-critic", "Prompt": "Attempted override"}}]},
+                {"type": "TOOL_RESULT", "content": f"conversationId: {critic_ok_cid}"},
+            ]
+            self.assertFalse(bh_gate.find_structural_proof_with_index(turn_judge_rej)[0])
+        finally:
+            bh_gate.BRAIN_CANDIDATE_ROOTS[:] = orig_roots
+            if orig_strict is not None:
+                os.environ["BH_GATE_STRICT_TWO_STAGE"] = orig_strict
+            else:
+                os.environ.pop("BH_GATE_STRICT_TWO_STAGE", None)
+            shutil.rmtree(tmp_brain, ignore_errors=True)
+
 
 if __name__ == "__main__":
     unittest.main()
